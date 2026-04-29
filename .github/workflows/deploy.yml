@@ -21,8 +21,8 @@ env:
   TF_WORKING_DIR: deploy/terraform
 
 jobs:
-  deploy:
-    name: Test, Build, and Deploy
+  test:
+    name: Test
     runs-on: ubuntu-latest
 
     steps:
@@ -38,11 +38,55 @@ jobs:
       - name: Run tests
         run: go test ./...
 
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    needs: test
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_DEPLOY_ON_PUSH == 'true' }}
+    env:
+      AWS_GITHUB_ACTIONS_ROLE_ARN: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check deployment configuration
+        env:
+          ALB_SUBNET_IDS: ${{ vars.ALB_SUBNET_IDS }}
+          MANAGED_BUCKET_PREFIX: ${{ vars.MANAGED_BUCKET_PREFIX }}
+          PRIVATE_SUBNET_IDS: ${{ vars.PRIVATE_SUBNET_IDS }}
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          VPC_ID: ${{ vars.VPC_ID }}
+        run: |
+          set -euo pipefail
+
+          missing=0
+          require_value() {
+            local name="$1"
+            local value="$2"
+            if [ -z "${value}" ]; then
+              echo "::error::Missing required deployment setting: ${name}"
+              missing=1
+            fi
+          }
+
+          require_value "secret AWS_GITHUB_ACTIONS_ROLE_ARN" "${AWS_GITHUB_ACTIONS_ROLE_ARN}"
+          require_value "repository variable TF_STATE_BUCKET" "${TF_STATE_BUCKET}"
+          require_value "repository variable VPC_ID" "${VPC_ID}"
+          require_value "repository variable ALB_SUBNET_IDS" "${ALB_SUBNET_IDS}"
+          require_value "repository variable PRIVATE_SUBNET_IDS" "${PRIVATE_SUBNET_IDS}"
+          require_value "repository variable MANAGED_BUCKET_PREFIX" "${MANAGED_BUCKET_PREFIX}"
+
+          if [ "${missing}" -ne 0 ]; then
+            echo "Set the missing GitHub secret/variables, then rerun this workflow."
+            exit 1
+          fi
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ env.AWS_GITHUB_ACTIONS_ROLE_ARN }}
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3

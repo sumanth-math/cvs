@@ -94,6 +94,8 @@ Configure these GitHub repository settings before running it:
 | `PRIVATE_SUBNET_IDS` | variable | `["subnet-ccc","subnet-ddd"]` |
 | `MANAGED_BUCKET_PREFIX` | variable | `my-company-platform-dev` |
 
+By default, pushes run the Go tests only. To deploy from pushes to `main`, set repository variable `ENABLE_DEPLOY_ON_PUSH` to `true`. You can also deploy from the Actions tab with `workflow_dispatch`.
+
 Optional variables include `AWS_REGION`, `PROJECT_NAME`, `ENVIRONMENT`, `CONTAINER_PLATFORM`, `CPU_ARCHITECTURE`, `ALLOWED_INGRESS_CIDR_BLOCKS`, `ALLOWED_KMS_KEY_ARNS`, and `TAGS_JSON`. List and map values should be JSON.
 
 ## Local Checks
