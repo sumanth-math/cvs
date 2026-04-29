@@ -1,0 +1,175 @@
+name: Deploy Platform API
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  CONTAINER_PLATFORM: ${{ vars.CONTAINER_PLATFORM || 'linux/amd64' }}
+  IMAGE_TAG: ${{ github.sha }}
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  TF_STATE_KEY: ${{ vars.TF_STATE_KEY || 'platform-service/terraform.tfstate' }}
+  TF_WORKING_DIR: deploy/terraform
+
+jobs:
+  deploy:
+    name: Test, Build, and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Render Terraform variables
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          ALB_SUBNET_IDS: ${{ vars.ALB_SUBNET_IDS }}
+          ALLOWED_INGRESS_CIDR_BLOCKS: ${{ vars.ALLOWED_INGRESS_CIDR_BLOCKS }}
+          ALLOWED_KMS_KEY_ARNS: ${{ vars.ALLOWED_KMS_KEY_ARNS }}
+          CREATE_GITHUB_OIDC_PROVIDER: ${{ vars.CREATE_GITHUB_OIDC_PROVIDER }}
+          CPU_ARCHITECTURE: ${{ vars.CPU_ARCHITECTURE }}
+          DEPLOY_BRANCH: ${{ vars.DEPLOY_BRANCH }}
+          DESIRED_COUNT: ${{ vars.DESIRED_COUNT }}
+          ENABLE_EXECUTE_COMMAND: ${{ vars.ENABLE_EXECUTE_COMMAND }}
+          ENVIRONMENT: ${{ vars.ENVIRONMENT }}
+          GITHUB_OIDC_PROVIDER_ARN: ${{ vars.GITHUB_OIDC_PROVIDER_ARN }}
+          INTERNAL_ALB: ${{ vars.INTERNAL_ALB }}
+          LOG_RETENTION_DAYS: ${{ vars.LOG_RETENTION_DAYS }}
+          MANAGED_BUCKET_PREFIX: ${{ vars.MANAGED_BUCKET_PREFIX }}
+          PRIVATE_SUBNET_IDS: ${{ vars.PRIVATE_SUBNET_IDS }}
+          PROJECT_NAME: ${{ vars.PROJECT_NAME }}
+          TAGS_JSON: ${{ vars.TAGS_JSON }}
+          TASK_CPU: ${{ vars.TASK_CPU }}
+          TASK_MEMORY: ${{ vars.TASK_MEMORY }}
+          TERRAFORM_MANAGED_GITHUB_REPOSITORY: ${{ vars.TERRAFORM_MANAGED_GITHUB_REPOSITORY }}
+          VPC_ID: ${{ vars.VPC_ID }}
+        run: |
+          set -euo pipefail
+
+          : "${TF_STATE_BUCKET:?Set TF_STATE_BUCKET as a repository variable}"
+          : "${VPC_ID:?Set VPC_ID as a repository variable}"
+          : "${ALB_SUBNET_IDS:?Set ALB_SUBNET_IDS as a JSON array repository variable}"
+          : "${PRIVATE_SUBNET_IDS:?Set PRIVATE_SUBNET_IDS as a JSON array repository variable}"
+          : "${MANAGED_BUCKET_PREFIX:?Set MANAGED_BUCKET_PREFIX as a repository variable}"
+
+          jq -n \
+            --arg project_name "${PROJECT_NAME:-platform-service}" \
+            --arg environment "${ENVIRONMENT:-dev}" \
+            --arg aws_region "${AWS_REGION}" \
+            --arg vpc_id "${VPC_ID}" \
+            --arg managed_bucket_prefix "${MANAGED_BUCKET_PREFIX}" \
+            --arg image_tag "${IMAGE_TAG}" \
+            --arg cpu_architecture "${CPU_ARCHITECTURE:-X86_64}" \
+            --arg github_repository "${TERRAFORM_MANAGED_GITHUB_REPOSITORY:-}" \
+            --arg github_branch "${DEPLOY_BRANCH:-main}" \
+            --arg github_oidc_provider_arn "${GITHUB_OIDC_PROVIDER_ARN:-}" \
+            --argjson alb_subnet_ids "${ALB_SUBNET_IDS}" \
+            --argjson private_subnet_ids "${PRIVATE_SUBNET_IDS}" \
+            --argjson allowed_ingress_cidr_blocks "${ALLOWED_INGRESS_CIDR_BLOCKS:-[\"0.0.0.0/0\"]}" \
+            --argjson internal_alb "${INTERNAL_ALB:-true}" \
+            --argjson desired_count "${DESIRED_COUNT:-2}" \
+            --argjson task_cpu "${TASK_CPU:-256}" \
+            --argjson task_memory "${TASK_MEMORY:-512}" \
+            --argjson log_retention_days "${LOG_RETENTION_DAYS:-30}" \
+            --argjson enable_execute_command "${ENABLE_EXECUTE_COMMAND:-false}" \
+            --argjson allowed_kms_key_arns "${ALLOWED_KMS_KEY_ARNS:-[]}" \
+            --argjson create_github_oidc_provider "${CREATE_GITHUB_OIDC_PROVIDER:-false}" \
+            --argjson tags "${TAGS_JSON:-{}}" \
+            '{
+              project_name: $project_name,
+              environment: $environment,
+              aws_region: $aws_region,
+              vpc_id: $vpc_id,
+              alb_subnet_ids: $alb_subnet_ids,
+              private_subnet_ids: $private_subnet_ids,
+              managed_bucket_prefix: $managed_bucket_prefix,
+              image_tag: $image_tag,
+              cpu_architecture: $cpu_architecture,
+              allowed_ingress_cidr_blocks: $allowed_ingress_cidr_blocks,
+              internal_alb: $internal_alb,
+              desired_count: $desired_count,
+              task_cpu: $task_cpu,
+              task_memory: $task_memory,
+              log_retention_days: $log_retention_days,
+              enable_execute_command: $enable_execute_command,
+              allowed_kms_key_arns: $allowed_kms_key_arns,
+              create_github_oidc_provider: $create_github_oidc_provider,
+              github_repository: $github_repository,
+              github_branch: $github_branch,
+              github_oidc_provider_arn: $github_oidc_provider_arn,
+              tags: $tags
+            }' > github.auto.tfvars.json
+
+          echo "ECR_REPOSITORY_NAME=${PROJECT_NAME:-platform-service}-${ENVIRONMENT:-dev}" >> "$GITHUB_ENV"
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform init \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="key=${TF_STATE_KEY}" \
+            -backend-config="region=${AWS_REGION}"
+
+      - name: Terraform validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform validate
+
+      - name: Ensure ECR repository exists
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -auto-approve -target=aws_ecr_repository.service
+
+      - name: Read ECR repository URL
+        id: ecr
+        run: |
+          repository_url="$(aws ecr describe-repositories \
+            --repository-names "${ECR_REPOSITORY_NAME}" \
+            --query 'repositories[0].repositoryUri' \
+            --output text)"
+          echo "repository_url=${repository_url}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        run: |
+          docker buildx build \
+            --platform "${CONTAINER_PLATFORM}" \
+            --tag "${{ steps.ecr.outputs.repository_url }}:${IMAGE_TAG}" \
+            --push .
+
+      - name: Deploy ECS service
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -auto-approve
