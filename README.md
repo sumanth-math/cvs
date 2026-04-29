@@ -1,5 +1,7 @@
 # Platform Self-Service API
 
+Repository: `sumanth-math/cvs`.
+
 This service exposes a small HTTP API that lets development teams request managed cloud resources. The first supported workflow provisions S3 buckets with guardrails:
 
 - deterministic bucket names from a platform prefix, team, and environment
