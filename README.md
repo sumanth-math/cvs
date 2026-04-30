@@ -33,6 +33,20 @@ The main pieces are:
 
 In short: developers call a simple API, and the platform service performs controlled AWS actions on their behalf with auditability, observability, and repeatable infrastructure deployment.
 
+## Business User App
+
+A React and TypeScript frontend lives in `frontend/`. It gives business users a guided form for requesting managed S3 buckets without crafting JSON by hand. The app collects team, environment, cost center, data classification, business owner, purpose, encryption, versioning, and tags, then calls the platform API's `POST /v1/s3-buckets` endpoint.
+
+Run it locally:
+
+```sh
+cd frontend
+npm install
+VITE_API_PROXY_TARGET=http://platform-service-dev-1583960201.us-east-1.elb.amazonaws.com npm run dev
+```
+
+Then open `http://127.0.0.1:5173/`.
+
 ## API
 
 Start locally with AWS credentials that can create and configure S3 buckets:
