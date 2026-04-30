@@ -5,7 +5,7 @@ const openAPIJSON = `{
   "info": {
     "title": "Platform Self-Service API",
     "version": "1.0.0",
-    "description": "HTTP API for platform self-service workflows, including guarded S3 bucket provisioning, GitHub webhook automation, dependency health aggregation, and developer portal catalog metadata."
+    "description": "HTTP API for platform self-service workflows, including guarded S3 bucket and SNS topic provisioning, GitHub webhook automation, dependency health aggregation, and developer portal catalog metadata."
   },
   "servers": [
     {
@@ -21,6 +21,9 @@ const openAPIJSON = `{
     },
     {
       "name": "S3 Buckets"
+    },
+    {
+      "name": "SNS Topics"
     },
     {
       "name": "GitHub Webhooks"
@@ -130,6 +133,47 @@ const openAPIJSON = `{
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BucketResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/v1/sns-topics": {
+      "post": {
+        "tags": ["SNS Topics"],
+        "summary": "Provision a guarded SNS topic for a development team",
+        "description": "Creates or returns an SNS topic with managed naming, AWS-managed SNS encryption by default, optional FIFO settings, display name, and tags. Successful responses can be recorded to DynamoDB as audit records.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SNSTopicRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "SNS topic provisioned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SNSTopicResult"
                 }
               }
             }
@@ -611,6 +655,86 @@ const openAPIJSON = `{
           }
         },
         "required": ["bucketName", "bucketArn", "region", "versioningEnabled", "encryption", "tags"]
+      },
+      "SNSTopicRequest": {
+        "type": "object",
+        "properties": {
+          "team": {
+            "type": "string",
+            "example": "payments"
+          },
+          "environment": {
+            "type": "string",
+            "example": "dev"
+          },
+          "topicName": {
+            "type": "string",
+            "description": "Optional explicit topic name. When provided, it must start with the managed prefix. FIFO names must end with .fifo.",
+            "example": "my-company-platform-dev-payments-dev"
+          },
+          "displayName": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "Payments events"
+          },
+          "fifoTopic": {
+            "type": "boolean",
+            "default": false
+          },
+          "contentBasedDeduplication": {
+            "type": "boolean",
+            "default": false,
+            "description": "Only valid for FIFO topics."
+          },
+          "kmsMasterKeyId": {
+            "type": "string",
+            "default": "alias/aws/sns",
+            "description": "SNS KMS key ID or alias. Defaults to the AWS-managed SNS key."
+          },
+          "tags": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "CostCenter": "payments"
+            }
+          }
+        },
+        "required": ["team", "environment"]
+      },
+      "SNSTopicResult": {
+        "type": "object",
+        "properties": {
+          "topicName": {
+            "type": "string"
+          },
+          "topicArn": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "fifoTopic": {
+            "type": "boolean"
+          },
+          "contentBasedDeduplication": {
+            "type": "boolean"
+          },
+          "kmsMasterKeyId": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["topicName", "topicArn", "region", "fifoTopic", "contentBasedDeduplication", "kmsMasterKeyId", "tags"]
       },
       "AggregateHealthResult": {
         "type": "object",

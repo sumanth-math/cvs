@@ -114,7 +114,7 @@ func TestOpenAPIDocumentIncludesCorePaths(t *testing.T) {
 		t.Fatalf("expected OpenAPI 3.0.3, got %q", document.OpenAPI)
 	}
 
-	for _, path := range []string{"/healthz", "/v1/s3-buckets", "/v1/catalog", "/v1/github/webhook"} {
+	for _, path := range []string{"/healthz", "/v1/s3-buckets", "/v1/sns-topics", "/v1/catalog", "/v1/github/webhook"} {
 		if _, ok := document.Paths[path]; !ok {
 			t.Fatalf("expected OpenAPI path %s", path)
 		}
@@ -158,6 +158,30 @@ func TestS3BucketValidationDoesNotCreateResource(t *testing.T) {
 	client := newAPIClient(t)
 
 	response, body := client.doJSON(t, http.MethodPost, "/v1/s3-buckets", []byte(`{}`))
+	if response.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusBadRequest, response.StatusCode, body)
+	}
+
+	var payload struct {
+		Error  string            `json:"error"`
+		Fields map[string]string `json:"fields"`
+	}
+	decodeJSON(t, body, &payload)
+
+	if payload.Error != "validation_failed" {
+		t.Fatalf("expected validation_failed error, got %q", payload.Error)
+	}
+	for _, field := range []string{"team", "environment"} {
+		if payload.Fields[field] == "" {
+			t.Fatalf("expected validation error for %q, got %v", field, payload.Fields)
+		}
+	}
+}
+
+func TestSNSTopicValidationDoesNotCreateResource(t *testing.T) {
+	client := newAPIClient(t)
+
+	response, body := client.doJSON(t, http.MethodPost, "/v1/sns-topics", []byte(`{}`))
 	if response.StatusCode != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d: %s", http.StatusBadRequest, response.StatusCode, body)
 	}

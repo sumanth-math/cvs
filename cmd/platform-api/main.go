@@ -55,12 +55,24 @@ func main() {
 		DefaultTags:  cfg.DefaultTags,
 	})
 
+	snsClient := sns.NewFromConfig(awsCfg, func(options *sns.Options) {
+		options.Region = cfg.AWSRegion
+	})
+	topicProvisioner := provisioner.NewSNSTopicProvisioner(snsClient, provisioner.Options{
+		Region:       cfg.AWSRegion,
+		BucketPrefix: cfg.BucketPrefix,
+		DefaultTags:  cfg.DefaultTags,
+	})
+
 	var bucketRecorder api.BucketProvisionRecorder
+	var topicRecorder api.SNSTopicProvisionRecorder
 	if cfg.APIRecordsTableName != "" {
 		dynamoClient := dynamodb.NewFromConfig(awsCfg, func(options *dynamodb.Options) {
 			options.Region = cfg.AWSRegion
 		})
-		bucketRecorder = audit.NewDynamoDBRecorder(dynamoClient, cfg.APIRecordsTableName)
+		recorder := audit.NewDynamoDBRecorder(dynamoClient, cfg.APIRecordsTableName)
+		bucketRecorder = recorder
+		topicRecorder = recorder
 	}
 
 	var githubClient workflow.GitHubAPI
@@ -70,9 +82,7 @@ func main() {
 
 	var snsPublisher workflow.SNSPublisher
 	if cfg.DeploymentSNSTopicARN != "" {
-		snsPublisher = sns.NewFromConfig(awsCfg, func(options *sns.Options) {
-			options.Region = cfg.AWSRegion
-		})
+		snsPublisher = snsClient
 	}
 
 	githubWebhooks, err := workflow.NewGitHubWebhookProcessor(workflow.Options{
@@ -93,7 +103,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           api.NewServer(bucketProvisioner, logger, api.WithHealthChecker(healthChecker), api.WithBucketProvisionRecorder(bucketRecorder), api.WithCatalog(portalCatalog), api.WithGitHubWebhooks(githubWebhooks), api.WithGitHubWebhookSecret(cfg.GitHubWebhookSecret)),
+		Handler:           api.NewServer(bucketProvisioner, logger, api.WithHealthChecker(healthChecker), api.WithBucketProvisionRecorder(bucketRecorder), api.WithSNSTopicProvisioner(topicProvisioner), api.WithSNSTopicProvisionRecorder(topicRecorder), api.WithCatalog(portalCatalog), api.WithGitHubWebhooks(githubWebhooks), api.WithGitHubWebhookSecret(cfg.GitHubWebhookSecret)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second,

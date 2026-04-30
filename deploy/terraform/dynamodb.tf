@@ -25,6 +25,11 @@ resource "aws_dynamodb_table" "api_records" {
     type = "S"
   }
 
+  attribute {
+    name = "topic_name"
+    type = "S"
+  }
+
   global_secondary_index {
     name            = "record-type-created-at"
     hash_key        = "record_type"
@@ -35,6 +40,12 @@ resource "aws_dynamodb_table" "api_records" {
   global_secondary_index {
     name            = "bucket-name"
     hash_key        = "bucket_name"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "topic-name"
+    hash_key        = "topic_name"
     projection_type = "ALL"
   }
 

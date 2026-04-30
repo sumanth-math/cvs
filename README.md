@@ -2,13 +2,16 @@
 
 Repository: `sumanth-math/cvs`.
 
-This service exposes a small HTTP API that lets development teams request managed cloud resources. The first supported workflow provisions S3 buckets with guardrails:
+This service exposes a small HTTP API that lets development teams request managed cloud resources. The first supported workflows provision S3 buckets and SNS topics with guardrails:
 
 - deterministic bucket names from a platform prefix, team, and environment
 - S3 block-public-access enabled
 - bucket-owner-enforced object ownership
 - server-side encryption with AES256 or AWS KMS
 - optional versioning
+- deterministic SNS topic names from the same platform prefix, team, and environment
+- SNS server-side encryption with the AWS-managed SNS KMS key by default
+- optional SNS FIFO topics with content-based deduplication
 - platform and team tags
 
 The API is written in Go, runs on AWS ECS Fargate, and is deployed with Terraform from GitHub Actions.
@@ -23,7 +26,8 @@ The main pieces are:
 
 - **Go API service**: an HTTP service under `cmd/platform-api` and `internal/` with structured JSON responses, request validation, consistent error handling, and JSON logs.
 - **S3 self-service provisioning**: `POST /v1/s3-buckets` creates guarded S3 buckets with deterministic names, encryption, public access blocking, ownership controls, optional versioning, and platform/team tags.
-- **DynamoDB audit records**: successful bucket provisioning responses are written to a DynamoDB table so platform teams can inspect what was created, when it was created, and which team/environment requested it.
+- **SNS self-service provisioning**: `POST /v1/sns-topics` creates guarded SNS standard or FIFO topics with deterministic names, AWS-managed SNS encryption by default, optional display names, content-based deduplication for FIFO topics, and platform/team tags.
+- **DynamoDB audit records**: successful provisioning responses are written to a DynamoDB table so platform teams can inspect what was created, when it was created, and which team/environment requested it.
 - **GitHub webhook workflow handler**: `POST /v1/github/webhook` processes GitHub events, including pull request auto-labeling, branch naming convention status checks, deployment summary publishing through SNS, and webhook `ping` validation.
 - **Aggregated health checks**: `GET /v1/health-checks` checks configured downstream services and returns an aggregate healthy/unhealthy result.
 - **Developer portal catalog backend**: `GET /v1/catalog` and related catalog endpoints expose service, environment, and infrastructure metadata from `PORTAL_CATALOG_JSON`.
@@ -95,6 +99,37 @@ Use KMS encryption:
 ```
 
 Successful `POST /v1/s3-buckets` calls can be recorded in DynamoDB when `API_RECORDS_TABLE_NAME` is configured. Records use type `s3_bucket_provisioned` and include the request ID, team, environment, bucket name, bucket ARN, region, versioning status, encryption mode, and tags.
+
+Create an SNS topic:
+
+```sh
+curl -sS -X POST http://localhost:8080/v1/sns-topics \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "team": "payments",
+    "environment": "dev",
+    "displayName": "Payments events",
+    "tags": {
+      "CostCenter": "payments"
+    }
+  }'
+```
+
+Create a FIFO SNS topic:
+
+```json
+{
+  "team": "payments",
+  "environment": "prod",
+  "fifoTopic": true,
+  "contentBasedDeduplication": true,
+  "tags": {
+    "DataClass": "internal"
+  }
+}
+```
+
+Successful `POST /v1/sns-topics` calls can be recorded in DynamoDB when `API_RECORDS_TABLE_NAME` is configured. Records use type `sns_topic_provisioned` and include the request ID, team, environment, topic name, topic ARN, region, FIFO settings, KMS key ID, and tags.
 
 Health check:
 
@@ -174,7 +209,7 @@ The integration tests are stored separately in `integration/`. They call the liv
 | --- | --- | --- |
 | `HTTP_ADDR` | `:8080` | Address the API listens on. |
 | `AWS_REGION` | `us-east-1` | AWS region for S3 API calls. |
-| `BUCKET_PREFIX` | `platform-dev` | Prefix used for generated bucket names. Make this globally unique. |
+| `BUCKET_PREFIX` | `platform-dev` | Prefix used for generated bucket and SNS topic names. Make this globally unique. |
 | `DEFAULT_TAGS` | empty | Comma-separated `key=value` tags added to provisioned buckets. |
 | `LOG_LEVEL` | `info` | Structured JSON log level: `debug`, `info`, `warn`, or `error`. |
 | `GITHUB_WEBHOOK_SECRET` | empty | Optional GitHub webhook secret used to verify `X-Hub-Signature-256`. |
@@ -197,6 +232,7 @@ Terraform under `deploy/terraform` creates:
 - CloudWatch logs
 - CloudWatch dashboard and alarms for ECS CPU, ECS memory, ALB target errors, ALB unhealthy hosts, and ALB latency
 - SNS topic for CloudWatch alarm notifications
+- IAM policy allowing the service to create and tag managed SNS topics with the configured prefix
 - DynamoDB table for successful API output/audit records
 - ECS task execution role
 - ECS task role with scoped S3 provisioning and DynamoDB record-write permissions

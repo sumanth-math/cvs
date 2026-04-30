@@ -67,6 +67,45 @@ func TestRecordBucketProvisionedNoopsWithoutTable(t *testing.T) {
 	}
 }
 
+func TestRecordSNSTopicProvisioned(t *testing.T) {
+	client := &fakeDynamoDB{}
+	recorder := NewDynamoDBRecorder(client, "platform-records")
+	recorder.now = func() time.Time {
+		return time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)
+	}
+
+	err := recorder.RecordSNSTopicProvisioned(context.Background(),
+		provisioner.SNSTopicRequest{Team: "payments", Environment: "dev"},
+		provisioner.SNSTopicResult{
+			TopicName:      "platform-payments-dev",
+			TopicARN:       "arn:aws:sns:us-east-1:123456789012:platform-payments-dev",
+			Region:         "us-east-1",
+			KMSMasterKeyID: "alias/aws/sns",
+			Tags: map[string]string{
+				"Team":        "payments",
+				"Environment": "dev",
+			},
+		},
+		"request-1",
+	)
+	if err != nil {
+		t.Fatalf("record sns topic provisioned: %v", err)
+	}
+
+	if client.tableName != "platform-records" {
+		t.Fatalf("unexpected table name: %q", client.tableName)
+	}
+	if got := stringAttribute(client.item, "record_type"); got != RecordTypeSNSTopicProvisioned {
+		t.Fatalf("unexpected record type: %q", got)
+	}
+	if got := stringAttribute(client.item, "topic_name"); got != "platform-payments-dev" {
+		t.Fatalf("unexpected topic name: %q", got)
+	}
+	if got := stringAttribute(client.item, "request_id"); got != "request-1" {
+		t.Fatalf("unexpected request id: %q", got)
+	}
+}
+
 type fakeDynamoDB struct {
 	puts                int
 	tableName           string

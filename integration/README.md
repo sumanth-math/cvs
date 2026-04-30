@@ -5,8 +5,8 @@ They exercise live service behavior through `PLATFORM_API_BASE_URL` instead of
 using in-memory handlers.
 
 The tests are intentionally read-only or validation-only. They check health,
-OpenAPI, catalog responses, JSON error handling, and S3 bucket request
-validation without creating AWS resources.
+OpenAPI, catalog responses, JSON error handling, S3 bucket request validation,
+and SNS topic request validation without creating AWS resources.
 
 Run them against a deployed API:
 
