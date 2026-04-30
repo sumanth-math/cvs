@@ -56,8 +56,25 @@ resource "aws_ecs_task_definition" "service" {
         {
           name  = "DEFAULT_TAGS"
           value = "Environment=${var.environment},Project=${var.project_name},ManagedBy=platform-service"
+        },
+        {
+          name  = "GITHUB_API_URL"
+          value = var.github_api_url
+        },
+        {
+          name  = "GITHUB_AUTO_LABELS"
+          value = tostring(var.github_auto_labels)
+        },
+        {
+          name  = "GITHUB_BRANCH_NAME_PATTERN"
+          value = var.github_branch_name_pattern
+        },
+        {
+          name  = "DEPLOYMENT_SUMMARY_TOPIC_ARN"
+          value = var.deployment_summary_topic_arn
         }
       ]
+      secrets = local.container_secrets
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -99,6 +116,8 @@ resource "aws_ecs_service" "service" {
   depends_on = [
     aws_iam_role_policy_attachment.task_execution,
     aws_iam_role_policy_attachment.task_s3_provisioning,
+    aws_iam_role_policy_attachment.deployment_summary_sns,
+    aws_iam_role_policy_attachment.github_webhook_secrets,
     aws_lb_listener.http
   ]
 }

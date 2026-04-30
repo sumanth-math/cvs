@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	"github.com/your-org/platform-service/internal/provisioner"
+	"github.com/your-org/platform-service/internal/workflow"
 )
 
 type BucketProvisioner interface {
@@ -20,12 +23,32 @@ type BucketProvisioner interface {
 }
 
 type Server struct {
-	buckets BucketProvisioner
-	logger  *slog.Logger
-	mux     *http.ServeMux
+	buckets             BucketProvisioner
+	githubWebhooks      GitHubWebhookProcessor
+	githubWebhookSecret string
+	logger              *slog.Logger
+	mux                 *http.ServeMux
 }
 
-func NewServer(buckets BucketProvisioner, logger *slog.Logger) http.Handler {
+type GitHubWebhookProcessor interface {
+	ProcessGitHubWebhook(context.Context, workflow.GitHubWebhookEvent) (workflow.GitHubWebhookResult, error)
+}
+
+type ServerOption func(*Server)
+
+func WithGitHubWebhooks(processor GitHubWebhookProcessor) ServerOption {
+	return func(server *Server) {
+		server.githubWebhooks = processor
+	}
+}
+
+func WithGitHubWebhookSecret(secret string) ServerOption {
+	return func(server *Server) {
+		server.githubWebhookSecret = strings.TrimSpace(secret)
+	}
+}
+
+func NewServer(buckets BucketProvisioner, logger *slog.Logger, options ...ServerOption) http.Handler {
 	if logger == nil {
 		logger = slog.New(slog.NewJSONHandler(io.Discard, nil))
 	}
@@ -34,6 +57,9 @@ func NewServer(buckets BucketProvisioner, logger *slog.Logger) http.Handler {
 		buckets: buckets,
 		logger:  logger,
 		mux:     http.NewServeMux(),
+	}
+	for _, option := range options {
+		option(server)
 	}
 
 	server.routes()
@@ -57,6 +83,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
 	s.mux.HandleFunc("POST /v1/s3-buckets", s.handleCreateBucket)
+	s.mux.HandleFunc("POST /v1/github/webhook", s.handleGitHubWebhook)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
@@ -97,6 +124,59 @@ func (s *Server) handleCreateBucket(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, result)
 }
 
+func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	eventName := strings.TrimSpace(r.Header.Get("X-GitHub-Event"))
+	if eventName == "" {
+		writeError(w, http.StatusBadRequest, "missing_event", "X-GitHub-Event header is required")
+		return
+	}
+
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 2<<20))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "payload_too_large", "webhook payload must be 2 MiB or smaller")
+		return
+	}
+
+	if s.githubWebhookSecret != "" && !validGitHubSignature(r.Header.Get("X-Hub-Signature-256"), body, s.githubWebhookSecret) {
+		writeError(w, http.StatusUnauthorized, "invalid_signature", "webhook signature verification failed")
+		return
+	}
+
+	if !json.Valid(body) {
+		writeError(w, http.StatusBadRequest, "invalid_json", "webhook payload must be valid JSON")
+		return
+	}
+
+	if s.githubWebhooks == nil {
+		writeJSON(w, http.StatusAccepted, workflow.GitHubWebhookResult{
+			Event:      eventName,
+			DeliveryID: strings.TrimSpace(r.Header.Get("X-GitHub-Delivery")),
+			Actions:    []string{"webhook_processor_not_configured"},
+		})
+		return
+	}
+
+	result, err := s.githubWebhooks.ProcessGitHubWebhook(r.Context(), workflow.GitHubWebhookEvent{
+		Event:      eventName,
+		DeliveryID: strings.TrimSpace(r.Header.Get("X-GitHub-Delivery")),
+		Payload:    body,
+	})
+	if err != nil {
+		s.logger.Error("github webhook processing failed",
+			"error", err,
+			"event", eventName,
+			"delivery_id", strings.TrimSpace(r.Header.Get("X-GitHub-Delivery")),
+			"request_id", r.Context().Value(requestIDKey{}),
+		)
+		writeError(w, http.StatusBadRequest, "webhook_processing_failed", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, result)
+}
+
 type requestIDKey struct{}
 
 type errorResponse struct {
@@ -125,4 +205,21 @@ func requestID(r *http.Request) string {
 		return "request-id-unavailable"
 	}
 	return hex.EncodeToString(data[:])
+}
+
+func validGitHubSignature(signatureHeader string, body []byte, secret string) bool {
+	signatureHeader = strings.TrimSpace(signatureHeader)
+	if !strings.HasPrefix(signatureHeader, "sha256=") {
+		return false
+	}
+
+	received, err := hex.DecodeString(strings.TrimPrefix(signatureHeader, "sha256="))
+	if err != nil {
+		return false
+	}
+
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	expected := mac.Sum(nil)
+	return hmac.Equal(received, expected)
 }

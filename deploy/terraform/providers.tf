@@ -23,6 +23,11 @@ locals {
   service_subnet_ids = local.create_network ? aws_subnet.public[*].id : var.private_subnet_ids
   assign_public_ip   = local.create_network
   internal_alb       = local.create_network ? false : var.internal_alb
+  github_secret_arns = compact([var.github_token_secret_arn, var.github_webhook_secret_arn])
+  container_secrets = concat(
+    var.github_token_secret_arn != "" ? [{ name = "GITHUB_TOKEN", valueFrom = var.github_token_secret_arn }] : [],
+    var.github_webhook_secret_arn != "" ? [{ name = "GITHUB_WEBHOOK_SECRET", valueFrom = var.github_webhook_secret_arn }] : []
+  )
 
   common_tags = merge(var.tags, {
     Environment = var.environment

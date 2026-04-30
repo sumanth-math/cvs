@@ -98,6 +98,48 @@ variable "allowed_kms_key_arns" {
   default     = []
 }
 
+variable "deployment_summary_topic_arn" {
+  type        = string
+  description = "Optional SNS topic ARN where GitHub deployment_status webhook summaries are published."
+  default     = ""
+}
+
+variable "github_api_url" {
+  type        = string
+  description = "GitHub API base URL used by the webhook workflow client."
+  default     = "https://api.github.com"
+}
+
+variable "github_auto_labels" {
+  type        = bool
+  description = "Whether pull_request webhook events should auto-apply labels."
+  default     = true
+}
+
+variable "github_branch_name_pattern" {
+  type        = string
+  description = "Regular expression enforced against pull request source branch names."
+  default     = "^(feature|feat|fix|bugfix|hotfix|chore|docs|refactor|test|ci|build|release|dependabot)/[a-z0-9._-]+$"
+}
+
+variable "github_token_secret_arn" {
+  type        = string
+  description = "Optional SSM Parameter or Secrets Manager ARN injected as GITHUB_TOKEN for webhook GitHub API actions."
+  default     = ""
+}
+
+variable "github_webhook_secret_arn" {
+  type        = string
+  description = "Optional SSM Parameter or Secrets Manager ARN injected as GITHUB_WEBHOOK_SECRET for signature verification."
+  default     = ""
+}
+
+variable "github_secret_kms_key_arns" {
+  type        = list(string)
+  description = "Optional KMS key ARNs needed to decrypt GitHub token/webhook secret parameters."
+  default     = []
+}
+
 variable "log_retention_days" {
   type        = number
   description = "CloudWatch log retention in days."

@@ -58,6 +58,22 @@ Health check:
 curl http://localhost:8080/healthz
 ```
 
+GitHub webhook endpoint:
+
+```sh
+curl -sS -X POST http://localhost:8080/v1/github/webhook \
+  -H 'Content-Type: application/json' \
+  -H 'X-GitHub-Event: ping' \
+  -H 'X-GitHub-Delivery: local-test' \
+  -d '{"zen":"Keep it logically awesome."}'
+```
+
+The webhook handler supports:
+
+- `pull_request`: auto-labels common PR types and creates a `platform/branch-name` commit status for branch naming conventions.
+- `deployment_status`: publishes deployment summaries to SNS when `DEPLOYMENT_SUMMARY_TOPIC_ARN` is configured.
+- `ping`: acknowledges GitHub webhook setup checks.
+
 ## Configuration
 
 | Variable | Default | Description |
@@ -66,6 +82,11 @@ curl http://localhost:8080/healthz
 | `AWS_REGION` | `us-east-1` | AWS region for S3 API calls. |
 | `BUCKET_PREFIX` | `platform-dev` | Prefix used for generated bucket names. Make this globally unique. |
 | `DEFAULT_TAGS` | empty | Comma-separated `key=value` tags added to provisioned buckets. |
+| `GITHUB_WEBHOOK_SECRET` | empty | Optional GitHub webhook secret used to verify `X-Hub-Signature-256`. |
+| `GITHUB_TOKEN` | empty | Optional token used to label PRs, post branch convention comments, and create commit statuses. |
+| `GITHUB_BRANCH_NAME_PATTERN` | platform default | Regular expression enforced for pull request source branch names. |
+| `GITHUB_AUTO_LABELS` | `true` | Whether pull request webhook events should auto-apply labels. |
+| `DEPLOYMENT_SUMMARY_TOPIC_ARN` | empty | Optional SNS topic ARN for deployment status summaries. |
 
 ## Deployment
 
@@ -111,6 +132,8 @@ The workflow will create the Terraform state bucket if it does not already exist
 If Terraform reports that backend argument `bucket` or `key` is missing, confirm `TF_STATE_BUCKET` is set exactly to the bucket name, with no quotes or newline. The workflow trims common copy/paste whitespace, creates a temporary `backend.hcl`, and fails early when the value is blank or invalid.
 
 Optional variables include `AWS_REGION`, `PROJECT_NAME`, `ENVIRONMENT`, `CONTAINER_PLATFORM`, `CPU_ARCHITECTURE`, `ALLOWED_INGRESS_CIDR_BLOCKS`, `ALLOWED_KMS_KEY_ARNS`, and `TAGS_JSON`. List and map values should be JSON.
+
+For GitHub webhook automation, optional repository variables include `GITHUB_TOKEN_SECRET_ARN`, `GITHUB_WEBHOOK_SECRET_ARN`, `GITHUB_SECRET_KMS_KEY_ARNS`, `GITHUB_AUTO_LABELS`, `GITHUB_BRANCH_NAME_PATTERN`, and `DEPLOYMENT_SUMMARY_TOPIC_ARN`. Store the GitHub token and webhook secret in SSM Parameter Store or Secrets Manager; only put their ARNs in GitHub repository variables. The token needs permissions to update pull request labels, create issue comments, and create commit statuses.
 
 ## Local Checks
 

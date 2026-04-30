@@ -12,10 +12,12 @@ import (
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sns"
 
 	"github.com/your-org/platform-service/internal/api"
 	"github.com/your-org/platform-service/internal/config"
 	"github.com/your-org/platform-service/internal/provisioner"
+	"github.com/your-org/platform-service/internal/workflow"
 )
 
 func main() {
@@ -48,9 +50,34 @@ func main() {
 		DefaultTags:  cfg.DefaultTags,
 	})
 
+	var githubClient workflow.GitHubAPI
+	if cfg.GitHubToken != "" {
+		githubClient = workflow.NewGitHubClient(cfg.GitHubToken, cfg.GitHubAPIURL, nil)
+	}
+
+	var snsPublisher workflow.SNSPublisher
+	if cfg.DeploymentSNSTopicARN != "" {
+		snsPublisher = sns.NewFromConfig(awsCfg, func(options *sns.Options) {
+			options.Region = cfg.AWSRegion
+		})
+	}
+
+	githubWebhooks, err := workflow.NewGitHubWebhookProcessor(workflow.Options{
+		GitHub:                    githubClient,
+		SNS:                       snsPublisher,
+		Logger:                    logger,
+		BranchNamePattern:         cfg.GitHubBranchNamePattern,
+		AutoLabelPullRequests:     cfg.GitHubAutoLabels,
+		DeploymentSummaryTopicARN: cfg.DeploymentSNSTopicARN,
+	})
+	if err != nil {
+		logger.Error("failed to configure github webhook processor", "error", err)
+		os.Exit(1)
+	}
+
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           api.NewServer(bucketProvisioner, logger),
+		Handler:           api.NewServer(bucketProvisioner, logger, api.WithGitHubWebhooks(githubWebhooks), api.WithGitHubWebhookSecret(cfg.GitHubWebhookSecret)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second,

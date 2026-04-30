@@ -62,3 +62,66 @@ resource "aws_iam_role_policy_attachment" "task_s3_provisioning" {
   role       = aws_iam_role.task.name
   policy_arn = aws_iam_policy.s3_provisioning.arn
 }
+
+data "aws_iam_policy_document" "deployment_summary_sns" {
+  count = var.deployment_summary_topic_arn != "" ? 1 : 0
+
+  statement {
+    sid       = "PublishDeploymentSummaries"
+    actions   = ["sns:Publish"]
+    resources = [var.deployment_summary_topic_arn]
+  }
+}
+
+resource "aws_iam_policy" "deployment_summary_sns" {
+  count = var.deployment_summary_topic_arn != "" ? 1 : 0
+
+  name        = "${local.name}-deployment-summary-sns"
+  description = "Allows the platform API to publish GitHub deployment summaries."
+  policy      = data.aws_iam_policy_document.deployment_summary_sns[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "deployment_summary_sns" {
+  count = var.deployment_summary_topic_arn != "" ? 1 : 0
+
+  role       = aws_iam_role.task.name
+  policy_arn = aws_iam_policy.deployment_summary_sns[0].arn
+}
+
+data "aws_iam_policy_document" "github_webhook_secrets" {
+  count = length(local.github_secret_arns) > 0 ? 1 : 0
+
+  statement {
+    sid = "ReadGitHubWebhookSecrets"
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "ssm:GetParameters"
+    ]
+    resources = local.github_secret_arns
+  }
+
+  dynamic "statement" {
+    for_each = length(var.github_secret_kms_key_arns) > 0 ? [1] : []
+
+    content {
+      sid       = "DecryptGitHubWebhookSecrets"
+      actions   = ["kms:Decrypt"]
+      resources = var.github_secret_kms_key_arns
+    }
+  }
+}
+
+resource "aws_iam_policy" "github_webhook_secrets" {
+  count = length(local.github_secret_arns) > 0 ? 1 : 0
+
+  name        = "${local.name}-github-webhook-secrets"
+  description = "Allows ECS to inject GitHub webhook token and secret values."
+  policy      = data.aws_iam_policy_document.github_webhook_secrets[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "github_webhook_secrets" {
+  count = length(local.github_secret_arns) > 0 ? 1 : 0
+
+  role       = aws_iam_role.task_execution.name
+  policy_arn = aws_iam_policy.github_webhook_secrets[0].arn
+}

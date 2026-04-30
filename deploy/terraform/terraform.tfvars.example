@@ -23,6 +23,17 @@ allowed_kms_key_arns = [
   # "arn:aws:kms:us-east-1:123456789012:key/00000000-0000-0000-0000-000000000000"
 ]
 
+# Optional: GitHub webhook workflow automation.
+# Store token/secret values in SSM Parameter Store or Secrets Manager, then pass
+# only the ARNs here. The token needs pull request label, issue comment, and
+# commit status permissions for the target repositories.
+github_token_secret_arn         = ""
+github_webhook_secret_arn       = ""
+github_secret_kms_key_arns      = []
+github_auto_labels              = true
+github_branch_name_pattern      = "^(feature|feat|fix|bugfix|hotfix|chore|docs|refactor|test|ci|build|release|dependabot)/[a-z0-9._-]+$"
+deployment_summary_topic_arn    = ""
+
 # Optional: have Terraform create a deploy role for GitHub Actions.
 # If your account already has the GitHub OIDC provider, set github_oidc_provider_arn instead.
 github_repository            = "your-org/your-repo"
