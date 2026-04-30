@@ -24,9 +24,13 @@ allowed_kms_key_arns = [
 ]
 
 # Optional: GitHub webhook workflow automation.
-# Store token/secret values in SSM Parameter Store or Secrets Manager, then pass
-# only the ARNs here. The token needs pull request label, issue comment, and
-# commit status permissions for the target repositories.
+# GitHub Actions can pass repository secrets PLATFORM_GITHUB_TOKEN and
+# PLATFORM_GITHUB_WEBHOOK_SECRET into these sensitive variables during deploy.
+# Warning: direct environment variables can be stored in Terraform state and ECS
+# task definition history. The *_secret_arn fields remain supported for a
+# stronger production setup.
+github_token                    = ""
+github_webhook_secret           = ""
 github_token_secret_arn         = ""
 github_webhook_secret_arn       = ""
 github_secret_kms_key_arns      = []

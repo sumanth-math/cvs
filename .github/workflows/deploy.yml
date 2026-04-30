@@ -190,6 +190,8 @@ jobs:
           GITHUB_TOKEN_SECRET_ARN: ${{ vars.GITHUB_TOKEN_SECRET_ARN }}
           GITHUB_OIDC_PROVIDER_ARN: ${{ vars.GITHUB_OIDC_PROVIDER_ARN }}
           GITHUB_WEBHOOK_SECRET_ARN: ${{ vars.GITHUB_WEBHOOK_SECRET_ARN }}
+          PLATFORM_GITHUB_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
+          PLATFORM_GITHUB_WEBHOOK_SECRET: ${{ secrets.PLATFORM_GITHUB_WEBHOOK_SECRET }}
           INTERNAL_ALB: ${{ vars.INTERNAL_ALB }}
           LOG_RETENTION_DAYS: ${{ vars.LOG_RETENTION_DAYS }}
           MANAGED_BUCKET_PREFIX: ${{ vars.MANAGED_BUCKET_PREFIX }}
@@ -243,7 +245,9 @@ jobs:
             --arg github_api_url "${GITHUB_API_URL:-https://api.github.com}" \
             --arg github_branch_name_pattern "${GITHUB_BRANCH_NAME_PATTERN:-^(feature|feat|fix|bugfix|hotfix|chore|docs|refactor|test|ci|build|release|dependabot)/[a-z0-9._-]+$}" \
             --arg github_token_secret_arn "${GITHUB_TOKEN_SECRET_ARN}" \
+            --arg github_token "${PLATFORM_GITHUB_TOKEN:-}" \
             --arg github_webhook_secret_arn "${GITHUB_WEBHOOK_SECRET_ARN}" \
+            --arg github_webhook_secret "${PLATFORM_GITHUB_WEBHOOK_SECRET:-}" \
             --argjson alb_subnet_ids "${ALB_SUBNET_IDS}" \
             --argjson private_subnet_ids "${PRIVATE_SUBNET_IDS}" \
             --argjson allowed_ingress_cidr_blocks "${ALLOWED_INGRESS_CIDR_BLOCKS:-[\"0.0.0.0/0\"]}" \
@@ -281,7 +285,9 @@ jobs:
               github_auto_labels: $github_auto_labels,
               github_branch_name_pattern: $github_branch_name_pattern,
               github_token_secret_arn: $github_token_secret_arn,
+              github_token: $github_token,
               github_webhook_secret_arn: $github_webhook_secret_arn,
+              github_webhook_secret: $github_webhook_secret,
               github_secret_kms_key_arns: $github_secret_kms_key_arns,
               create_github_oidc_provider: $create_github_oidc_provider,
               github_repository: $github_repository,

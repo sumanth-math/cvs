@@ -24,6 +24,44 @@ locals {
   assign_public_ip   = local.create_network
   internal_alb       = local.create_network ? false : var.internal_alb
   github_secret_arns = compact([var.github_token_secret_arn, var.github_webhook_secret_arn])
+  container_environment = concat(
+    [
+      {
+        name  = "AWS_REGION"
+        value = var.aws_region
+      },
+      {
+        name  = "BUCKET_PREFIX"
+        value = var.managed_bucket_prefix
+      },
+      {
+        name  = "HTTP_ADDR"
+        value = ":${var.container_port}"
+      },
+      {
+        name  = "DEFAULT_TAGS"
+        value = "Environment=${var.environment},Project=${var.project_name},ManagedBy=platform-service"
+      },
+      {
+        name  = "GITHUB_API_URL"
+        value = var.github_api_url
+      },
+      {
+        name  = "GITHUB_AUTO_LABELS"
+        value = tostring(var.github_auto_labels)
+      },
+      {
+        name  = "GITHUB_BRANCH_NAME_PATTERN"
+        value = var.github_branch_name_pattern
+      },
+      {
+        name  = "DEPLOYMENT_SUMMARY_TOPIC_ARN"
+        value = var.deployment_summary_topic_arn
+      }
+    ],
+    var.github_token_secret_arn == "" && var.github_token != "" ? [{ name = "GITHUB_TOKEN", value = var.github_token }] : [],
+    var.github_webhook_secret_arn == "" && var.github_webhook_secret != "" ? [{ name = "GITHUB_WEBHOOK_SECRET", value = var.github_webhook_secret }] : []
+  )
   container_secrets = concat(
     var.github_token_secret_arn != "" ? [{ name = "GITHUB_TOKEN", valueFrom = var.github_token_secret_arn }] : [],
     var.github_webhook_secret_arn != "" ? [{ name = "GITHUB_WEBHOOK_SECRET", valueFrom = var.github_webhook_secret_arn }] : []

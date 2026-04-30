@@ -128,10 +128,24 @@ variable "github_token_secret_arn" {
   default     = ""
 }
 
+variable "github_token" {
+  type        = string
+  description = "Optional GitHub token injected directly from GitHub Actions repository secrets. Prefer github_token_secret_arn for production."
+  default     = ""
+  sensitive   = true
+}
+
 variable "github_webhook_secret_arn" {
   type        = string
   description = "Optional SSM Parameter or Secrets Manager ARN injected as GITHUB_WEBHOOK_SECRET for signature verification."
   default     = ""
+}
+
+variable "github_webhook_secret" {
+  type        = string
+  description = "Optional GitHub webhook signing secret injected directly from GitHub Actions repository secrets. Prefer github_webhook_secret_arn for production."
+  default     = ""
+  sensitive   = true
 }
 
 variable "github_secret_kms_key_arns" {

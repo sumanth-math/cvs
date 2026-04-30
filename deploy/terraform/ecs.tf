@@ -40,41 +40,8 @@ resource "aws_ecs_task_definition" "service" {
         }
       ]
 
-      environment = [
-        {
-          name  = "AWS_REGION"
-          value = var.aws_region
-        },
-        {
-          name  = "BUCKET_PREFIX"
-          value = var.managed_bucket_prefix
-        },
-        {
-          name  = "HTTP_ADDR"
-          value = ":${var.container_port}"
-        },
-        {
-          name  = "DEFAULT_TAGS"
-          value = "Environment=${var.environment},Project=${var.project_name},ManagedBy=platform-service"
-        },
-        {
-          name  = "GITHUB_API_URL"
-          value = var.github_api_url
-        },
-        {
-          name  = "GITHUB_AUTO_LABELS"
-          value = tostring(var.github_auto_labels)
-        },
-        {
-          name  = "GITHUB_BRANCH_NAME_PATTERN"
-          value = var.github_branch_name_pattern
-        },
-        {
-          name  = "DEPLOYMENT_SUMMARY_TOPIC_ARN"
-          value = var.deployment_summary_topic_arn
-        }
-      ]
-      secrets = local.container_secrets
+      environment = local.container_environment
+      secrets     = local.container_secrets
 
       logConfiguration = {
         logDriver = "awslogs"

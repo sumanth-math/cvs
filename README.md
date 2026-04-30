@@ -133,7 +133,9 @@ If Terraform reports that backend argument `bucket` or `key` is missing, confirm
 
 Optional variables include `AWS_REGION`, `PROJECT_NAME`, `ENVIRONMENT`, `CONTAINER_PLATFORM`, `CPU_ARCHITECTURE`, `ALLOWED_INGRESS_CIDR_BLOCKS`, `ALLOWED_KMS_KEY_ARNS`, and `TAGS_JSON`. List and map values should be JSON.
 
-For GitHub webhook automation, optional repository variables include `GITHUB_TOKEN_SECRET_ARN`, `GITHUB_WEBHOOK_SECRET_ARN`, `GITHUB_SECRET_KMS_KEY_ARNS`, `GITHUB_AUTO_LABELS`, `GITHUB_BRANCH_NAME_PATTERN`, and `DEPLOYMENT_SUMMARY_TOPIC_ARN`. Store the GitHub token and webhook secret in SSM Parameter Store or Secrets Manager; only put their ARNs in GitHub repository variables. The token needs permissions to update pull request labels, create issue comments, and create commit statuses.
+For GitHub webhook automation using GitHub repository secrets, add `PLATFORM_GITHUB_TOKEN` and `PLATFORM_GITHUB_WEBHOOK_SECRET` under GitHub Actions secrets. The workflow injects those values into ECS as `GITHUB_TOKEN` and `GITHUB_WEBHOOK_SECRET`. The webhook secret value must match the secret configured on the GitHub webhook. The token needs permissions to update pull request labels, create issue comments, and create commit statuses.
+
+The ARN-based variables `GITHUB_TOKEN_SECRET_ARN`, `GITHUB_WEBHOOK_SECRET_ARN`, and `GITHUB_SECRET_KMS_KEY_ARNS` are still supported for a stronger production setup using SSM Parameter Store or Secrets Manager. Direct GitHub-secret injection works, but the values can be stored in Terraform state and ECS task definition history.
 
 ## Local Checks
 
