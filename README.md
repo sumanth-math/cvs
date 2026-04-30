@@ -80,6 +80,18 @@ curl http://localhost:8080/v1/catalog/infrastructure
 
 The catalog endpoints are read-only and return empty lists when `PORTAL_CATALOG_JSON` is not configured. Service lists can be filtered with `owner` and `environment`; infrastructure lists can be filtered with `environment` and `type`.
 
+API errors use a consistent JSON shape. Request bodies for `POST` endpoints must use `Content-Type: application/json`; unknown JSON fields, duplicate JSON objects, unsupported query parameters, invalid catalog IDs, and unsupported methods return validation errors instead of plain-text responses.
+
+```json
+{
+  "error": "validation_failed",
+  "message": "request query validation failed",
+  "fields": {
+    "team": "is not supported"
+  }
+}
+```
+
 GitHub webhook endpoint:
 
 ```sh

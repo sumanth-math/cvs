@@ -30,6 +30,35 @@ func TestHealth(t *testing.T) {
 	}
 }
 
+func TestUnknownRouteReturnsJSONError(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil)
+	request := httptest.NewRequest(http.MethodGet, "/v1/unknown", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, response.Code)
+	}
+	assertErrorCode(t, response, "not_found")
+}
+
+func TestMethodNotAllowedReturnsJSONError(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil)
+	request := httptest.NewRequest(http.MethodGet, "/v1/s3-buckets", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status %d, got %d", http.StatusMethodNotAllowed, response.Code)
+	}
+	if response.Header().Get("Allow") != http.MethodPost {
+		t.Fatalf("unexpected Allow header: %q", response.Header().Get("Allow"))
+	}
+	assertErrorCode(t, response, "method_not_allowed")
+}
+
 func TestCreateBucket(t *testing.T) {
 	expected := provisioner.BucketResult{
 		BucketName:        "acme-platform-payments-dev",
@@ -41,6 +70,7 @@ func TestCreateBucket(t *testing.T) {
 	handler := NewServer(&fakeBucketProvisioner{result: expected}, nil)
 	body := bytes.NewBufferString(`{"team":"payments","environment":"dev"}`)
 	request := httptest.NewRequest(http.MethodPost, "/v1/s3-buckets", body)
+	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
 
 	handler.ServeHTTP(response, request)
@@ -64,6 +94,7 @@ func TestCreateBucketValidationError(t *testing.T) {
 	}, nil)
 	body := bytes.NewBufferString(`{"environment":"dev"}`)
 	request := httptest.NewRequest(http.MethodPost, "/v1/s3-buckets", body)
+	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
 
 	handler.ServeHTTP(response, request)
@@ -71,6 +102,61 @@ func TestCreateBucketValidationError(t *testing.T) {
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, response.Code)
 	}
+}
+
+func TestCreateBucketRejectsMissingContentType(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil)
+	request := httptest.NewRequest(http.MethodPost, "/v1/s3-buckets", bytes.NewBufferString(`{"team":"payments","environment":"dev"}`))
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("expected status %d, got %d", http.StatusUnsupportedMediaType, response.Code)
+	}
+	assertErrorCode(t, response, "unsupported_media_type")
+}
+
+func TestCreateBucketRejectsUnknownJSONField(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil)
+	request := httptest.NewRequest(http.MethodPost, "/v1/s3-buckets", bytes.NewBufferString(`{"team":"payments","environment":"dev","unexpected":true}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, response.Code)
+	}
+	assertErrorCode(t, response, "invalid_json")
+}
+
+func TestCreateBucketRejectsTrailingJSON(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil)
+	request := httptest.NewRequest(http.MethodPost, "/v1/s3-buckets", bytes.NewBufferString(`{"team":"payments","environment":"dev"} {"team":"ops","environment":"dev"}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, response.Code)
+	}
+	assertErrorCode(t, response, "invalid_json")
+}
+
+func TestCreateBucketRecoversFromPanic(t *testing.T) {
+	handler := NewServer(&panicBucketProvisioner{}, nil)
+	request := httptest.NewRequest(http.MethodPost, "/v1/s3-buckets", bytes.NewBufferString(`{"team":"payments","environment":"dev"}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, response.Code)
+	}
+	assertErrorCode(t, response, "internal_error")
 }
 
 func TestHealthChecksHealthy(t *testing.T) {
@@ -144,6 +230,19 @@ func TestCatalogListsServices(t *testing.T) {
 	}
 }
 
+func TestCatalogRejectsUnknownQueryParameter(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil, WithCatalog(catalog.NewStaticStore(testCatalog())))
+	request := httptest.NewRequest(http.MethodGet, "/v1/catalog/services?team=platform", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, response.Code)
+	}
+	assertErrorField(t, response, "team")
+}
+
 func TestCatalogGetsServiceByID(t *testing.T) {
 	handler := NewServer(&fakeBucketProvisioner{}, nil, WithCatalog(catalog.NewStaticStore(testCatalog())))
 	request := httptest.NewRequest(http.MethodGet, "/v1/catalog/services/platform-api", nil)
@@ -162,6 +261,19 @@ func TestCatalogGetsServiceByID(t *testing.T) {
 	if actual.Name != "Platform API" {
 		t.Fatalf("unexpected service name: %q", actual.Name)
 	}
+}
+
+func TestCatalogRejectsInvalidServiceID(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil, WithCatalog(catalog.NewStaticStore(testCatalog())))
+	request := httptest.NewRequest(http.MethodGet, "/v1/catalog/services/bad%20id", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, response.Code)
+	}
+	assertErrorField(t, response, "id")
 }
 
 func TestCatalogGetsEnvironmentByID(t *testing.T) {
@@ -229,6 +341,7 @@ func TestGitHubWebhookProcessesSignedPayload(t *testing.T) {
 	)
 	body := []byte(`{"zen":"testing"}`)
 	request := httptest.NewRequest(http.MethodPost, "/v1/github/webhook", bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-GitHub-Event", "ping")
 	request.Header.Set("X-GitHub-Delivery", "delivery-1")
 	request.Header.Set("X-Hub-Signature-256", signGitHubPayload(body, "secret"))
@@ -250,6 +363,7 @@ func TestGitHubWebhookRejectsInvalidSignature(t *testing.T) {
 		WithGitHubWebhookSecret("secret"),
 	)
 	request := httptest.NewRequest(http.MethodPost, "/v1/github/webhook", bytes.NewReader([]byte(`{"zen":"testing"}`)))
+	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-GitHub-Event", "ping")
 	request.Header.Set("X-Hub-Signature-256", "sha256=bad")
 	response := httptest.NewRecorder()
@@ -261,6 +375,39 @@ func TestGitHubWebhookRejectsInvalidSignature(t *testing.T) {
 	}
 }
 
+func TestGitHubWebhookRejectsInvalidEventHeader(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil, WithGitHubWebhooks(&fakeGitHubWebhookProcessor{}))
+	request := httptest.NewRequest(http.MethodPost, "/v1/github/webhook", bytes.NewReader([]byte(`{"zen":"testing"}`)))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-GitHub-Event", "bad event")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, response.Code)
+	}
+	assertErrorCode(t, response, "invalid_event")
+}
+
+func TestGitHubWebhookRejectsMissingSignature(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil,
+		WithGitHubWebhooks(&fakeGitHubWebhookProcessor{}),
+		WithGitHubWebhookSecret("secret"),
+	)
+	request := httptest.NewRequest(http.MethodPost, "/v1/github/webhook", bytes.NewReader([]byte(`{"zen":"testing"}`)))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-GitHub-Event", "ping")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, response.Code)
+	}
+	assertErrorCode(t, response, "missing_signature")
+}
+
 type fakeBucketProvisioner struct {
 	result provisioner.BucketResult
 	err    error
@@ -268,6 +415,12 @@ type fakeBucketProvisioner struct {
 
 func (f *fakeBucketProvisioner) ProvisionBucket(context.Context, provisioner.BucketRequest) (provisioner.BucketResult, error) {
 	return f.result, f.err
+}
+
+type panicBucketProvisioner struct{}
+
+func (p *panicBucketProvisioner) ProvisionBucket(context.Context, provisioner.BucketRequest) (provisioner.BucketResult, error) {
+	panic("boom")
 }
 
 type fakeHealthChecker struct {
@@ -337,5 +490,29 @@ func testCatalog() catalog.Catalog {
 				Environment: "prod",
 			},
 		},
+	}
+}
+
+func assertErrorCode(t *testing.T, response *httptest.ResponseRecorder, code string) {
+	t.Helper()
+
+	var actual errorResponse
+	if err := json.NewDecoder(response.Body).Decode(&actual); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if actual.Error != code {
+		t.Fatalf("expected error code %q, got %q", code, actual.Error)
+	}
+}
+
+func assertErrorField(t *testing.T, response *httptest.ResponseRecorder, field string) {
+	t.Helper()
+
+	var actual errorResponse
+	if err := json.NewDecoder(response.Body).Decode(&actual); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if actual.Fields[field] == "" {
+		t.Fatalf("expected error field %q, got %+v", field, actual.Fields)
 	}
 }
