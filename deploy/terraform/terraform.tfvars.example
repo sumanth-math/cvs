@@ -48,6 +48,44 @@ health_check_targets = [
   }
 ]
 
+# Optional: developer portal catalog exposed by GET /v1/catalog.
+portal_catalog_json = <<JSON
+{
+  "services": [
+    {
+      "id": "platform-api",
+      "name": "Platform Self-Service API",
+      "owner": "platform",
+      "description": "Self-service API for developer cloud resource requests.",
+      "repository": "https://github.com/sumanth-math/cvs",
+      "runtime": "go",
+      "lifecycle": "production",
+      "tier": "internal",
+      "environments": ["dev"]
+    }
+  ],
+  "environments": [
+    {
+      "id": "dev",
+      "name": "Development",
+      "region": "us-east-1",
+      "ecsCluster": "platform-service-dev"
+    }
+  ],
+  "infrastructure": [
+    {
+      "id": "platform-service-dev-alb",
+      "name": "Platform API ALB",
+      "type": "alb",
+      "provider": "aws",
+      "environment": "dev",
+      "region": "us-east-1",
+      "owner": "platform"
+    }
+  ]
+}
+JSON
+
 # Optional: have Terraform create a deploy role for GitHub Actions.
 # If your account already has the GitHub OIDC provider, set github_oidc_provider_arn instead.
 github_repository            = "your-org/your-repo"

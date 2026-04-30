@@ -117,6 +117,12 @@ variable "health_check_targets" {
   default     = []
 }
 
+variable "portal_catalog_json" {
+  type        = string
+  description = "Optional JSON catalog document exposed through the developer portal catalog APIs."
+  default     = ""
+}
+
 variable "github_api_url" {
   type        = string
   description = "GitHub API base URL used by the webhook workflow client."

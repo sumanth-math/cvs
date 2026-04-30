@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/your-org/platform-service/internal/catalog"
 	"github.com/your-org/platform-service/internal/health"
 	"github.com/your-org/platform-service/internal/provisioner"
 	"github.com/your-org/platform-service/internal/workflow"
@@ -25,6 +26,7 @@ type BucketProvisioner interface {
 
 type Server struct {
 	buckets             BucketProvisioner
+	catalog             CatalogReader
 	health              HealthChecker
 	githubWebhooks      GitHubWebhookProcessor
 	githubWebhookSecret string
@@ -40,11 +42,21 @@ type HealthChecker interface {
 	CheckHealth(context.Context) health.AggregateResult
 }
 
+type CatalogReader interface {
+	Snapshot(context.Context) catalog.Catalog
+}
+
 type ServerOption func(*Server)
 
 func WithHealthChecker(checker HealthChecker) ServerOption {
 	return func(server *Server) {
 		server.health = checker
+	}
+}
+
+func WithCatalog(reader CatalogReader) ServerOption {
+	return func(server *Server) {
+		server.catalog = reader
 	}
 }
 
@@ -95,6 +107,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
 	s.mux.HandleFunc("GET /v1/health-checks", s.handleHealthChecks)
+	s.mux.HandleFunc("GET /v1/catalog", s.handleCatalog)
+	s.mux.HandleFunc("GET /v1/catalog/services", s.handleCatalogServices)
+	s.mux.HandleFunc("GET /v1/catalog/services/{id}", s.handleCatalogService)
+	s.mux.HandleFunc("GET /v1/catalog/environments", s.handleCatalogEnvironments)
+	s.mux.HandleFunc("GET /v1/catalog/environments/{id}", s.handleCatalogEnvironment)
+	s.mux.HandleFunc("GET /v1/catalog/infrastructure", s.handleCatalogInfrastructure)
+	s.mux.HandleFunc("GET /v1/catalog/infrastructure/{id}", s.handleCatalogInfrastructureResource)
 	s.mux.HandleFunc("POST /v1/s3-buckets", s.handleCreateBucket)
 	s.mux.HandleFunc("POST /v1/github/webhook", s.handleGitHubWebhook)
 }
@@ -119,6 +138,57 @@ func (s *Server) handleHealthChecks(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusServiceUnavailable
 	}
 	writeJSON(w, status, result)
+}
+
+func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.catalogSnapshot(r.Context()))
+}
+
+func (s *Server) handleCatalogServices(w http.ResponseWriter, r *http.Request) {
+	services := filterServices(s.catalogSnapshot(r.Context()).Services, r.URL.Query().Get("owner"), r.URL.Query().Get("environment"))
+	writeJSON(w, http.StatusOK, map[string][]catalog.Service{"services": services})
+}
+
+func (s *Server) handleCatalogService(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.PathValue("id"))
+	for _, service := range s.catalogSnapshot(r.Context()).Services {
+		if service.ID == id {
+			writeJSON(w, http.StatusOK, service)
+			return
+		}
+	}
+	writeError(w, http.StatusNotFound, "not_found", "catalog service not found")
+}
+
+func (s *Server) handleCatalogEnvironments(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string][]catalog.Environment{"environments": s.catalogSnapshot(r.Context()).Environments})
+}
+
+func (s *Server) handleCatalogEnvironment(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.PathValue("id"))
+	for _, environment := range s.catalogSnapshot(r.Context()).Environments {
+		if environment.ID == id {
+			writeJSON(w, http.StatusOK, environment)
+			return
+		}
+	}
+	writeError(w, http.StatusNotFound, "not_found", "catalog environment not found")
+}
+
+func (s *Server) handleCatalogInfrastructure(w http.ResponseWriter, r *http.Request) {
+	resources := filterInfrastructure(s.catalogSnapshot(r.Context()).Infrastructure, r.URL.Query().Get("environment"), r.URL.Query().Get("type"))
+	writeJSON(w, http.StatusOK, map[string][]catalog.InfrastructureResource{"infrastructure": resources})
+}
+
+func (s *Server) handleCatalogInfrastructureResource(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.PathValue("id"))
+	for _, resource := range s.catalogSnapshot(r.Context()).Infrastructure {
+		if resource.ID == id {
+			writeJSON(w, http.StatusOK, resource)
+			return
+		}
+	}
+	writeError(w, http.StatusNotFound, "not_found", "catalog infrastructure resource not found")
 }
 
 func (s *Server) handleCreateBucket(w http.ResponseWriter, r *http.Request) {
@@ -206,6 +276,66 @@ func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusAccepted, result)
+}
+
+func (s *Server) catalogSnapshot(ctx context.Context) catalog.Catalog {
+	if s.catalog == nil {
+		return catalog.Catalog{
+			Services:       []catalog.Service{},
+			Environments:   []catalog.Environment{},
+			Infrastructure: []catalog.InfrastructureResource{},
+		}
+	}
+	return s.catalog.Snapshot(ctx)
+}
+
+func filterServices(services []catalog.Service, owner, environment string) []catalog.Service {
+	owner = strings.TrimSpace(owner)
+	environment = strings.TrimSpace(environment)
+	if owner == "" && environment == "" {
+		return services
+	}
+
+	filtered := make([]catalog.Service, 0, len(services))
+	for _, service := range services {
+		if owner != "" && service.Owner != owner {
+			continue
+		}
+		if environment != "" && !containsString(service.Environments, environment) {
+			continue
+		}
+		filtered = append(filtered, service)
+	}
+	return filtered
+}
+
+func filterInfrastructure(resources []catalog.InfrastructureResource, environment, resourceType string) []catalog.InfrastructureResource {
+	environment = strings.TrimSpace(environment)
+	resourceType = strings.TrimSpace(resourceType)
+	if environment == "" && resourceType == "" {
+		return resources
+	}
+
+	filtered := make([]catalog.InfrastructureResource, 0, len(resources))
+	for _, resource := range resources {
+		if environment != "" && resource.Environment != environment {
+			continue
+		}
+		if resourceType != "" && resource.Type != resourceType {
+			continue
+		}
+		filtered = append(filtered, resource)
+	}
+	return filtered
+}
+
+func containsString(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
 }
 
 type requestIDKey struct{}

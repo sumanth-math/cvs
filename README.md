@@ -67,6 +67,19 @@ curl http://localhost:8080/v1/health-checks
 
 The aggregated endpoint returns `200` when every configured service returns its expected status code and `503` when any service is unhealthy.
 
+Developer portal catalog:
+
+```sh
+export PORTAL_CATALOG_JSON='{"services":[{"id":"platform-api","name":"Platform API","owner":"platform","repository":"https://github.com/sumanth-math/cvs","environments":["dev"]}],"environments":[{"id":"dev","name":"Development","region":"us-east-1"}],"infrastructure":[{"id":"platform-alb","name":"Platform ALB","type":"alb","provider":"aws","environment":"dev"}]}'
+curl http://localhost:8080/v1/catalog
+curl http://localhost:8080/v1/catalog/services
+curl http://localhost:8080/v1/catalog/services/platform-api
+curl http://localhost:8080/v1/catalog/environments
+curl http://localhost:8080/v1/catalog/infrastructure
+```
+
+The catalog endpoints are read-only and return empty lists when `PORTAL_CATALOG_JSON` is not configured. Service lists can be filtered with `owner` and `environment`; infrastructure lists can be filtered with `environment` and `type`.
+
 GitHub webhook endpoint:
 
 ```sh
@@ -97,6 +110,7 @@ The webhook handler supports:
 | `GITHUB_AUTO_LABELS` | `true` | Whether pull request webhook events should auto-apply labels. |
 | `DEPLOYMENT_SUMMARY_TOPIC_ARN` | empty | Optional SNS topic ARN for deployment status summaries. |
 | `HEALTH_CHECK_TARGETS` | empty | JSON array of services checked by `GET /v1/health-checks`. |
+| `PORTAL_CATALOG_JSON` | empty | JSON catalog document for developer portal service, environment, and infrastructure metadata. |
 
 ## Deployment
 
@@ -147,6 +161,12 @@ To configure dependency aggregation in GitHub Actions, add repository variable `
 
 ```json
 [{"name":"github-api","url":"https://api.github.com/meta","expected_status":200,"timeout":"2s"}]
+```
+
+To configure the developer portal backend in GitHub Actions, add repository variable `PORTAL_CATALOG_JSON` as a JSON object:
+
+```json
+{"services":[{"id":"platform-api","name":"Platform API","owner":"platform","repository":"https://github.com/sumanth-math/cvs","environments":["dev"]}],"environments":[{"id":"dev","name":"Development","region":"us-east-1"}],"infrastructure":[{"id":"platform-alb","name":"Platform ALB","type":"alb","provider":"aws","environment":"dev"}]}
 ```
 
 For GitHub webhook automation using GitHub repository secrets, add `PLATFORM_GITHUB_TOKEN` and `PLATFORM_GITHUB_WEBHOOK_SECRET` under GitHub Actions secrets. The workflow injects those values into ECS as `GITHUB_TOKEN` and `GITHUB_WEBHOOK_SECRET`. The webhook secret value must match the secret configured on the GitHub webhook. The token needs permissions to update pull request labels, create issue comments, and create commit statuses.

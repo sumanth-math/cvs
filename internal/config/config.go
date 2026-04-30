@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/your-org/platform-service/internal/catalog"
 	"github.com/your-org/platform-service/internal/health"
 	"github.com/your-org/platform-service/internal/workflow"
 )
@@ -22,6 +23,7 @@ type Config struct {
 	GitHubAutoLabels        bool
 	DeploymentSNSTopicARN   string
 	HealthCheckTargets      []health.Target
+	PortalCatalog           catalog.Catalog
 }
 
 func Load() (Config, error) {
@@ -50,6 +52,12 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	cfg.HealthCheckTargets = healthCheckTargets
+
+	portalCatalog, err := catalog.Parse(os.Getenv("PORTAL_CATALOG_JSON"))
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.PortalCatalog = portalCatalog
 
 	tags, err := parseTags(os.Getenv("DEFAULT_TAGS"))
 	if err != nil {

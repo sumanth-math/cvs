@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 
 	"github.com/your-org/platform-service/internal/api"
+	"github.com/your-org/platform-service/internal/catalog"
 	"github.com/your-org/platform-service/internal/config"
 	"github.com/your-org/platform-service/internal/health"
 	"github.com/your-org/platform-service/internal/provisioner"
@@ -77,10 +78,11 @@ func main() {
 	}
 
 	healthChecker := health.NewChecker(cfg.HealthCheckTargets, nil)
+	portalCatalog := catalog.NewStaticStore(cfg.PortalCatalog)
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           api.NewServer(bucketProvisioner, logger, api.WithHealthChecker(healthChecker), api.WithGitHubWebhooks(githubWebhooks), api.WithGitHubWebhookSecret(cfg.GitHubWebhookSecret)),
+		Handler:           api.NewServer(bucketProvisioner, logger, api.WithHealthChecker(healthChecker), api.WithCatalog(portalCatalog), api.WithGitHubWebhooks(githubWebhooks), api.WithGitHubWebhookSecret(cfg.GitHubWebhookSecret)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second,

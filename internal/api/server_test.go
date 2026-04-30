@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/your-org/platform-service/internal/catalog"
 	"github.com/your-org/platform-service/internal/health"
 	"github.com/your-org/platform-service/internal/provisioner"
 	"github.com/your-org/platform-service/internal/workflow"
@@ -118,6 +119,108 @@ func TestHealthChecksUnhealthy(t *testing.T) {
 	}
 }
 
+func TestCatalogListsServices(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil, WithCatalog(catalog.NewStaticStore(testCatalog())))
+	request := httptest.NewRequest(http.MethodGet, "/v1/catalog/services?owner=platform&environment=dev", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+
+	var actual struct {
+		Services []catalog.Service `json:"services"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&actual); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(actual.Services) != 1 {
+		t.Fatalf("expected 1 service, got %d", len(actual.Services))
+	}
+	if actual.Services[0].ID != "platform-api" {
+		t.Fatalf("unexpected service id: %q", actual.Services[0].ID)
+	}
+}
+
+func TestCatalogGetsServiceByID(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil, WithCatalog(catalog.NewStaticStore(testCatalog())))
+	request := httptest.NewRequest(http.MethodGet, "/v1/catalog/services/platform-api", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+
+	var actual catalog.Service
+	if err := json.NewDecoder(response.Body).Decode(&actual); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if actual.Name != "Platform API" {
+		t.Fatalf("unexpected service name: %q", actual.Name)
+	}
+}
+
+func TestCatalogGetsEnvironmentByID(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil, WithCatalog(catalog.NewStaticStore(testCatalog())))
+	request := httptest.NewRequest(http.MethodGet, "/v1/catalog/environments/dev", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+
+	var actual catalog.Environment
+	if err := json.NewDecoder(response.Body).Decode(&actual); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if actual.Region != "us-east-1" {
+		t.Fatalf("unexpected region: %q", actual.Region)
+	}
+}
+
+func TestCatalogListsInfrastructure(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil, WithCatalog(catalog.NewStaticStore(testCatalog())))
+	request := httptest.NewRequest(http.MethodGet, "/v1/catalog/infrastructure?environment=dev&type=alb", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+
+	var actual struct {
+		Infrastructure []catalog.InfrastructureResource `json:"infrastructure"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&actual); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(actual.Infrastructure) != 1 {
+		t.Fatalf("expected 1 infrastructure resource, got %d", len(actual.Infrastructure))
+	}
+	if actual.Infrastructure[0].ID != "platform-alb" {
+		t.Fatalf("unexpected infrastructure id: %q", actual.Infrastructure[0].ID)
+	}
+}
+
+func TestCatalogReturnsNotFound(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil, WithCatalog(catalog.NewStaticStore(testCatalog())))
+	request := httptest.NewRequest(http.MethodGet, "/v1/catalog/services/missing", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, response.Code)
+	}
+}
+
 func TestGitHubWebhookProcessesSignedPayload(t *testing.T) {
 	processor := &fakeGitHubWebhookProcessor{}
 	handler := NewServer(&fakeBucketProvisioner{}, nil,
@@ -192,4 +295,47 @@ func signGitHubPayload(body []byte, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(body)
 	return fmt.Sprintf("sha256=%x", mac.Sum(nil))
+}
+
+func testCatalog() catalog.Catalog {
+	return catalog.Catalog{
+		Services: []catalog.Service{
+			{
+				ID:           "platform-api",
+				Name:         "Platform API",
+				Owner:        "platform",
+				Repository:   "https://github.com/sumanth-math/cvs",
+				Environments: []string{"dev"},
+			},
+			{
+				ID:           "payments-api",
+				Name:         "Payments API",
+				Owner:        "payments",
+				Environments: []string{"prod"},
+			},
+		},
+		Environments: []catalog.Environment{
+			{
+				ID:     "dev",
+				Name:   "Development",
+				Region: "us-east-1",
+			},
+		},
+		Infrastructure: []catalog.InfrastructureResource{
+			{
+				ID:          "platform-alb",
+				Name:        "Platform ALB",
+				Type:        "alb",
+				Provider:    "aws",
+				Environment: "dev",
+			},
+			{
+				ID:          "payments-bucket",
+				Name:        "Payments Bucket",
+				Type:        "s3-bucket",
+				Provider:    "aws",
+				Environment: "prod",
+			},
+		},
+	}
 }

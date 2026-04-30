@@ -196,6 +196,7 @@ jobs:
           INTERNAL_ALB: ${{ vars.INTERNAL_ALB }}
           LOG_RETENTION_DAYS: ${{ vars.LOG_RETENTION_DAYS }}
           MANAGED_BUCKET_PREFIX: ${{ vars.MANAGED_BUCKET_PREFIX }}
+          PORTAL_CATALOG_JSON: ${{ vars.PORTAL_CATALOG_JSON }}
           PRIVATE_SUBNET_IDS: ${{ vars.PRIVATE_SUBNET_IDS }}
           PROJECT_NAME: ${{ vars.PROJECT_NAME }}
           TAGS_JSON: ${{ vars.TAGS_JSON }}
@@ -219,6 +220,7 @@ jobs:
           GITHUB_TOKEN_SECRET_ARN="$(trim_value "${GITHUB_TOKEN_SECRET_ARN:-}")"
           GITHUB_WEBHOOK_SECRET_ARN="$(trim_value "${GITHUB_WEBHOOK_SECRET_ARN:-}")"
           HEALTH_CHECK_TARGETS="$(trim_value "${HEALTH_CHECK_TARGETS:-}")"
+          PORTAL_CATALOG_JSON="$(trim_value "${PORTAL_CATALOG_JSON:-}")"
           VPC_ID="$(trim_value "${VPC_ID:-}")"
           ALB_SUBNET_IDS="$(trim_value "${ALB_SUBNET_IDS:-}")"
           PRIVATE_SUBNET_IDS="$(trim_value "${PRIVATE_SUBNET_IDS:-}")"
@@ -253,6 +255,7 @@ jobs:
             --arg github_token "${PLATFORM_GITHUB_TOKEN:-}" \
             --arg github_webhook_secret_arn "${GITHUB_WEBHOOK_SECRET_ARN}" \
             --arg github_webhook_secret "${PLATFORM_GITHUB_WEBHOOK_SECRET:-}" \
+            --arg portal_catalog_json "${PORTAL_CATALOG_JSON}" \
             --argjson alb_subnet_ids "${ALB_SUBNET_IDS}" \
             --argjson private_subnet_ids "${PRIVATE_SUBNET_IDS}" \
             --argjson allowed_ingress_cidr_blocks "${ALLOWED_INGRESS_CIDR_BLOCKS:-[\"0.0.0.0/0\"]}" \
@@ -295,6 +298,7 @@ jobs:
               github_webhook_secret_arn: $github_webhook_secret_arn,
               github_webhook_secret: $github_webhook_secret,
               github_secret_kms_key_arns: $github_secret_kms_key_arns,
+              portal_catalog_json: $portal_catalog_json,
               health_check_targets: $health_check_targets,
               create_github_oidc_provider: $create_github_oidc_provider,
               github_repository: $github_repository,

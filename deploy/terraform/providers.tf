@@ -73,6 +73,10 @@ locals {
       {
         name  = "HEALTH_CHECK_TARGETS"
         value = jsonencode(local.health_check_targets)
+      },
+      {
+        name  = "PORTAL_CATALOG_JSON"
+        value = var.portal_catalog_json
       }
     ],
     var.github_token_secret_arn == "" && var.github_token != "" ? [{ name = "GITHUB_TOKEN", value = var.github_token }] : [],
