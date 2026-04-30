@@ -16,6 +16,7 @@ import (
 
 	"github.com/your-org/platform-service/internal/api"
 	"github.com/your-org/platform-service/internal/config"
+	"github.com/your-org/platform-service/internal/health"
 	"github.com/your-org/platform-service/internal/provisioner"
 	"github.com/your-org/platform-service/internal/workflow"
 )
@@ -75,9 +76,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	healthChecker := health.NewChecker(cfg.HealthCheckTargets, nil)
+
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           api.NewServer(bucketProvisioner, logger, api.WithGitHubWebhooks(githubWebhooks), api.WithGitHubWebhookSecret(cfg.GitHubWebhookSecret)),
+		Handler:           api.NewServer(bucketProvisioner, logger, api.WithHealthChecker(healthChecker), api.WithGitHubWebhooks(githubWebhooks), api.WithGitHubWebhookSecret(cfg.GitHubWebhookSecret)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second,

@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/your-org/platform-service/internal/health"
 	"github.com/your-org/platform-service/internal/provisioner"
 	"github.com/your-org/platform-service/internal/workflow"
 )
@@ -70,6 +72,52 @@ func TestCreateBucketValidationError(t *testing.T) {
 	}
 }
 
+func TestHealthChecksHealthy(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil, WithHealthChecker(&fakeHealthChecker{
+		result: health.AggregateResult{
+			Status:    health.StatusHealthy,
+			CheckedAt: time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC),
+			Services: []health.ServiceResult{
+				{Name: "github", Status: health.StatusHealthy, HTTPStatus: http.StatusOK, ExpectedStatus: http.StatusOK},
+			},
+		},
+	}))
+	request := httptest.NewRequest(http.MethodGet, "/v1/health-checks", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+	var actual health.AggregateResult
+	if err := json.NewDecoder(response.Body).Decode(&actual); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if actual.Status != health.StatusHealthy {
+		t.Fatalf("expected healthy status, got %q", actual.Status)
+	}
+}
+
+func TestHealthChecksUnhealthy(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil, WithHealthChecker(&fakeHealthChecker{
+		result: health.AggregateResult{
+			Status: health.StatusUnhealthy,
+			Services: []health.ServiceResult{
+				{Name: "payments", Status: health.StatusUnhealthy, HTTPStatus: http.StatusInternalServerError, ExpectedStatus: http.StatusOK},
+			},
+		},
+	}))
+	request := httptest.NewRequest(http.MethodGet, "/v1/health-checks", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected status %d, got %d", http.StatusServiceUnavailable, response.Code)
+	}
+}
+
 func TestGitHubWebhookProcessesSignedPayload(t *testing.T) {
 	processor := &fakeGitHubWebhookProcessor{}
 	handler := NewServer(&fakeBucketProvisioner{}, nil,
@@ -117,6 +165,14 @@ type fakeBucketProvisioner struct {
 
 func (f *fakeBucketProvisioner) ProvisionBucket(context.Context, provisioner.BucketRequest) (provisioner.BucketResult, error) {
 	return f.result, f.err
+}
+
+type fakeHealthChecker struct {
+	result health.AggregateResult
+}
+
+func (f *fakeHealthChecker) CheckHealth(context.Context) health.AggregateResult {
+	return f.result
 }
 
 type fakeGitHubWebhookProcessor struct {

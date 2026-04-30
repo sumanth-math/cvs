@@ -104,6 +104,19 @@ variable "deployment_summary_topic_arn" {
   default     = ""
 }
 
+variable "health_check_targets" {
+  type = list(object({
+    name            = string
+    url             = string
+    method          = optional(string)
+    expectedStatus  = optional(number)
+    expected_status = optional(number)
+    timeout         = optional(string)
+  }))
+  description = "HTTP services checked by GET /v1/health-checks."
+  default     = []
+}
+
 variable "github_api_url" {
   type        = string
   description = "GitHub API base URL used by the webhook workflow client."

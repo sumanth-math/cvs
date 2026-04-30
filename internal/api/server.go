@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/your-org/platform-service/internal/health"
 	"github.com/your-org/platform-service/internal/provisioner"
 	"github.com/your-org/platform-service/internal/workflow"
 )
@@ -24,6 +25,7 @@ type BucketProvisioner interface {
 
 type Server struct {
 	buckets             BucketProvisioner
+	health              HealthChecker
 	githubWebhooks      GitHubWebhookProcessor
 	githubWebhookSecret string
 	logger              *slog.Logger
@@ -34,7 +36,17 @@ type GitHubWebhookProcessor interface {
 	ProcessGitHubWebhook(context.Context, workflow.GitHubWebhookEvent) (workflow.GitHubWebhookResult, error)
 }
 
+type HealthChecker interface {
+	CheckHealth(context.Context) health.AggregateResult
+}
+
 type ServerOption func(*Server)
+
+func WithHealthChecker(checker HealthChecker) ServerOption {
+	return func(server *Server) {
+		server.health = checker
+	}
+}
 
 func WithGitHubWebhooks(processor GitHubWebhookProcessor) ServerOption {
 	return func(server *Server) {
@@ -82,12 +94,31 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
+	s.mux.HandleFunc("GET /v1/health-checks", s.handleHealthChecks)
 	s.mux.HandleFunc("POST /v1/s3-buckets", s.handleCreateBucket)
 	s.mux.HandleFunc("POST /v1/github/webhook", s.handleGitHubWebhook)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleHealthChecks(w http.ResponseWriter, r *http.Request) {
+	if s.health == nil {
+		writeJSON(w, http.StatusOK, health.AggregateResult{
+			Status:    health.StatusHealthy,
+			CheckedAt: time.Now().UTC(),
+			Services:  []health.ServiceResult{},
+		})
+		return
+	}
+
+	result := s.health.CheckHealth(r.Context())
+	status := http.StatusOK
+	if result.Status != health.StatusHealthy {
+		status = http.StatusServiceUnavailable
+	}
+	writeJSON(w, status, result)
 }
 
 func (s *Server) handleCreateBucket(w http.ResponseWriter, r *http.Request) {

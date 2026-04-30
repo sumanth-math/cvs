@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/your-org/platform-service/internal/health"
 	"github.com/your-org/platform-service/internal/workflow"
 )
 
@@ -20,6 +21,7 @@ type Config struct {
 	GitHubBranchNamePattern string
 	GitHubAutoLabels        bool
 	DeploymentSNSTopicARN   string
+	HealthCheckTargets      []health.Target
 }
 
 func Load() (Config, error) {
@@ -42,6 +44,12 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	cfg.GitHubAutoLabels = autoLabels
+
+	healthCheckTargets, err := health.ParseTargets(os.Getenv("HEALTH_CHECK_TARGETS"))
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.HealthCheckTargets = healthCheckTargets
 
 	tags, err := parseTags(os.Getenv("DEFAULT_TAGS"))
 	if err != nil {

@@ -58,6 +58,15 @@ Health check:
 curl http://localhost:8080/healthz
 ```
 
+Aggregated dependency health checks:
+
+```sh
+export HEALTH_CHECK_TARGETS='[{"name":"github-api","url":"https://api.github.com/meta","expectedStatus":200,"timeout":"2s"}]'
+curl http://localhost:8080/v1/health-checks
+```
+
+The aggregated endpoint returns `200` when every configured service returns its expected status code and `503` when any service is unhealthy.
+
 GitHub webhook endpoint:
 
 ```sh
@@ -87,6 +96,7 @@ The webhook handler supports:
 | `GITHUB_BRANCH_NAME_PATTERN` | platform default | Regular expression enforced for pull request source branch names. |
 | `GITHUB_AUTO_LABELS` | `true` | Whether pull request webhook events should auto-apply labels. |
 | `DEPLOYMENT_SUMMARY_TOPIC_ARN` | empty | Optional SNS topic ARN for deployment status summaries. |
+| `HEALTH_CHECK_TARGETS` | empty | JSON array of services checked by `GET /v1/health-checks`. |
 
 ## Deployment
 
@@ -132,6 +142,12 @@ The workflow will create the Terraform state bucket if it does not already exist
 If Terraform reports that backend argument `bucket` or `key` is missing, confirm `TF_STATE_BUCKET` is set exactly to the bucket name, with no quotes or newline. The workflow trims common copy/paste whitespace, creates a temporary `backend.hcl`, and fails early when the value is blank or invalid.
 
 Optional variables include `AWS_REGION`, `PROJECT_NAME`, `ENVIRONMENT`, `CONTAINER_PLATFORM`, `CPU_ARCHITECTURE`, `ALLOWED_INGRESS_CIDR_BLOCKS`, `ALLOWED_KMS_KEY_ARNS`, and `TAGS_JSON`. List and map values should be JSON.
+
+To configure dependency aggregation in GitHub Actions, add repository variable `HEALTH_CHECK_TARGETS` as a JSON array. The repository variable accepts either `expected_status` or `expectedStatus`:
+
+```json
+[{"name":"github-api","url":"https://api.github.com/meta","expected_status":200,"timeout":"2s"}]
+```
 
 For GitHub webhook automation using GitHub repository secrets, add `PLATFORM_GITHUB_TOKEN` and `PLATFORM_GITHUB_WEBHOOK_SECRET` under GitHub Actions secrets. The workflow injects those values into ECS as `GITHUB_TOKEN` and `GITHUB_WEBHOOK_SECRET`. The webhook secret value must match the secret configured on the GitHub webhook. The token needs permissions to update pull request labels, create issue comments, and create commit statuses.
 

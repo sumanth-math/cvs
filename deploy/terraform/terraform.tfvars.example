@@ -38,6 +38,16 @@ github_auto_labels              = true
 github_branch_name_pattern      = "^(feature|feat|fix|bugfix|hotfix|chore|docs|refactor|test|ci|build|release|dependabot)/[a-z0-9._-]+$"
 deployment_summary_topic_arn    = ""
 
+# Optional: services aggregated by GET /v1/health-checks.
+health_check_targets = [
+  {
+    name            = "github-api"
+    url             = "https://api.github.com/meta"
+    expected_status = 200
+    timeout         = "2s"
+  }
+]
+
 # Optional: have Terraform create a deploy role for GitHub Actions.
 # If your account already has the GitHub OIDC provider, set github_oidc_provider_arn instead.
 github_repository            = "your-org/your-repo"

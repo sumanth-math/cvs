@@ -24,6 +24,18 @@ locals {
   assign_public_ip   = local.create_network
   internal_alb       = local.create_network ? false : var.internal_alb
   github_secret_arns = compact([var.github_token_secret_arn, var.github_webhook_secret_arn])
+  health_check_targets = [
+    for target in var.health_check_targets : merge(
+      {
+        name = target.name
+        url  = target.url
+      },
+      target.method != null ? { method = target.method } : {},
+      target.expected_status != null ? { expectedStatus = target.expected_status } : {},
+      target.expectedStatus != null ? { expectedStatus = target.expectedStatus } : {},
+      target.timeout != null ? { timeout = target.timeout } : {}
+    )
+  ]
   container_environment = concat(
     [
       {
@@ -57,6 +69,10 @@ locals {
       {
         name  = "DEPLOYMENT_SUMMARY_TOPIC_ARN"
         value = var.deployment_summary_topic_arn
+      },
+      {
+        name  = "HEALTH_CHECK_TARGETS"
+        value = jsonencode(local.health_check_targets)
       }
     ],
     var.github_token_secret_arn == "" && var.github_token != "" ? [{ name = "GITHUB_TOKEN", value = var.github_token }] : [],

@@ -190,6 +190,7 @@ jobs:
           GITHUB_TOKEN_SECRET_ARN: ${{ vars.GITHUB_TOKEN_SECRET_ARN }}
           GITHUB_OIDC_PROVIDER_ARN: ${{ vars.GITHUB_OIDC_PROVIDER_ARN }}
           GITHUB_WEBHOOK_SECRET_ARN: ${{ vars.GITHUB_WEBHOOK_SECRET_ARN }}
+          HEALTH_CHECK_TARGETS: ${{ vars.HEALTH_CHECK_TARGETS }}
           PLATFORM_GITHUB_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
           PLATFORM_GITHUB_WEBHOOK_SECRET: ${{ secrets.PLATFORM_GITHUB_WEBHOOK_SECRET }}
           INTERNAL_ALB: ${{ vars.INTERNAL_ALB }}
@@ -217,6 +218,7 @@ jobs:
           GITHUB_BRANCH_NAME_PATTERN="$(trim_value "${GITHUB_BRANCH_NAME_PATTERN:-}")"
           GITHUB_TOKEN_SECRET_ARN="$(trim_value "${GITHUB_TOKEN_SECRET_ARN:-}")"
           GITHUB_WEBHOOK_SECRET_ARN="$(trim_value "${GITHUB_WEBHOOK_SECRET_ARN:-}")"
+          HEALTH_CHECK_TARGETS="$(trim_value "${HEALTH_CHECK_TARGETS:-}")"
           VPC_ID="$(trim_value "${VPC_ID:-}")"
           ALB_SUBNET_IDS="$(trim_value "${ALB_SUBNET_IDS:-}")"
           PRIVATE_SUBNET_IDS="$(trim_value "${PRIVATE_SUBNET_IDS:-}")"
@@ -228,6 +230,9 @@ jobs:
           fi
           if [ -z "${PRIVATE_SUBNET_IDS}" ]; then
             PRIVATE_SUBNET_IDS="[]"
+          fi
+          if [ -z "${HEALTH_CHECK_TARGETS}" ]; then
+            HEALTH_CHECK_TARGETS="[]"
           fi
 
           jq -n \
@@ -261,6 +266,7 @@ jobs:
             --argjson create_github_oidc_provider "${CREATE_GITHUB_OIDC_PROVIDER:-false}" \
             --argjson github_auto_labels "${GITHUB_AUTO_LABELS:-true}" \
             --argjson github_secret_kms_key_arns "${GITHUB_SECRET_KMS_KEY_ARNS:-[]}" \
+            --argjson health_check_targets "${HEALTH_CHECK_TARGETS}" \
             --argjson tags "${TAGS_JSON:-{}}" \
             '{
               project_name: $project_name,
@@ -289,6 +295,7 @@ jobs:
               github_webhook_secret_arn: $github_webhook_secret_arn,
               github_webhook_secret: $github_webhook_secret,
               github_secret_kms_key_arns: $github_secret_kms_key_arns,
+              health_check_targets: $health_check_targets,
               create_github_oidc_provider: $create_github_oidc_provider,
               github_repository: $github_repository,
               github_branch: $github_branch,
