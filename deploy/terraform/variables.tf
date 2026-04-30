@@ -173,10 +173,75 @@ variable "github_secret_kms_key_arns" {
   default     = []
 }
 
+variable "log_level" {
+  type        = string
+  description = "Structured application log level."
+  default     = "info"
+
+  validation {
+    condition     = contains(["debug", "info", "warn", "error"], lower(var.log_level))
+    error_message = "log_level must be debug, info, warn, or error."
+  }
+}
+
 variable "log_retention_days" {
   type        = number
   description = "CloudWatch log retention in days."
   default     = 30
+}
+
+variable "enable_observability" {
+  type        = bool
+  description = "Create CloudWatch alarms, SNS alerting resources, and a dashboard for the ECS service."
+  default     = true
+}
+
+variable "create_observability_sns_topic" {
+  type        = bool
+  description = "Create an SNS topic for CloudWatch alarm notifications."
+  default     = true
+}
+
+variable "alarm_notification_topic_arns" {
+  type        = list(string)
+  description = "Existing SNS topic ARNs that receive CloudWatch alarm and OK notifications."
+  default     = []
+}
+
+variable "alarm_email_endpoints" {
+  type        = list(string)
+  description = "Email addresses subscribed to the managed observability SNS topic. Each address must confirm the AWS subscription email."
+  default     = []
+}
+
+variable "alarm_cpu_threshold" {
+  type        = number
+  description = "Average ECS CPU utilization percent that triggers an alarm."
+  default     = 80
+}
+
+variable "alarm_memory_threshold" {
+  type        = number
+  description = "Average ECS memory utilization percent that triggers an alarm."
+  default     = 80
+}
+
+variable "alarm_5xx_threshold" {
+  type        = number
+  description = "ALB target 5xx responses per minute that trigger an alarm."
+  default     = 5
+}
+
+variable "alarm_unhealthy_host_threshold" {
+  type        = number
+  description = "Average unhealthy ALB target count that triggers an alarm."
+  default     = 1
+}
+
+variable "alarm_target_response_time_seconds" {
+  type        = number
+  description = "Average ALB target response time in seconds that triggers an alarm."
+  default     = 2
 }
 
 variable "enable_execute_command" {

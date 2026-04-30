@@ -55,6 +55,10 @@ locals {
         value = "Environment=${var.environment},Project=${var.project_name},ManagedBy=platform-service"
       },
       {
+        name  = "LOG_LEVEL"
+        value = lower(var.log_level)
+      },
+      {
         name  = "GITHUB_API_URL"
         value = var.github_api_url
       },

@@ -43,6 +43,21 @@ output "task_role_arn" {
   value       = aws_iam_role.task.arn
 }
 
+output "observability_dashboard_name" {
+  description = "CloudWatch dashboard for service observability."
+  value       = var.enable_observability ? aws_cloudwatch_dashboard.service[0].dashboard_name : null
+}
+
+output "observability_dashboard_url" {
+  description = "AWS console URL for the CloudWatch observability dashboard."
+  value       = var.enable_observability ? "https://${var.aws_region}.console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards:name=${aws_cloudwatch_dashboard.service[0].dashboard_name}" : null
+}
+
+output "observability_sns_topic_arn" {
+  description = "Managed SNS topic ARN for CloudWatch alarm notifications."
+  value       = var.enable_observability && var.create_observability_sns_topic ? aws_sns_topic.observability[0].arn : null
+}
+
 output "github_actions_role_arn" {
   description = "Optional GitHub Actions OIDC role ARN."
   value       = local.create_github_role ? aws_iam_role.github_actions[0].arn : null

@@ -176,10 +176,19 @@ jobs:
           ALB_SUBNET_IDS: ${{ vars.ALB_SUBNET_IDS }}
           ALLOWED_INGRESS_CIDR_BLOCKS: ${{ vars.ALLOWED_INGRESS_CIDR_BLOCKS }}
           ALLOWED_KMS_KEY_ARNS: ${{ vars.ALLOWED_KMS_KEY_ARNS }}
+          ALARM_5XX_THRESHOLD: ${{ vars.ALARM_5XX_THRESHOLD }}
+          ALARM_CPU_THRESHOLD: ${{ vars.ALARM_CPU_THRESHOLD }}
+          ALARM_EMAIL_ENDPOINTS: ${{ vars.ALARM_EMAIL_ENDPOINTS }}
+          ALARM_MEMORY_THRESHOLD: ${{ vars.ALARM_MEMORY_THRESHOLD }}
+          ALARM_NOTIFICATION_TOPIC_ARNS: ${{ vars.ALARM_NOTIFICATION_TOPIC_ARNS }}
+          ALARM_TARGET_RESPONSE_TIME_SECONDS: ${{ vars.ALARM_TARGET_RESPONSE_TIME_SECONDS }}
+          ALARM_UNHEALTHY_HOST_THRESHOLD: ${{ vars.ALARM_UNHEALTHY_HOST_THRESHOLD }}
+          CREATE_OBSERVABILITY_SNS_TOPIC: ${{ vars.CREATE_OBSERVABILITY_SNS_TOPIC }}
           CREATE_GITHUB_OIDC_PROVIDER: ${{ vars.CREATE_GITHUB_OIDC_PROVIDER }}
           CPU_ARCHITECTURE: ${{ vars.CPU_ARCHITECTURE }}
           DEPLOY_BRANCH: ${{ vars.DEPLOY_BRANCH }}
           DESIRED_COUNT: ${{ vars.DESIRED_COUNT }}
+          ENABLE_OBSERVABILITY: ${{ vars.ENABLE_OBSERVABILITY }}
           ENABLE_EXECUTE_COMMAND: ${{ vars.ENABLE_EXECUTE_COMMAND }}
           ENVIRONMENT: ${{ vars.ENVIRONMENT }}
           DEPLOYMENT_SUMMARY_TOPIC_ARN: ${{ vars.DEPLOYMENT_SUMMARY_TOPIC_ARN }}
@@ -194,6 +203,7 @@ jobs:
           PLATFORM_GITHUB_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
           PLATFORM_GITHUB_WEBHOOK_SECRET: ${{ secrets.PLATFORM_GITHUB_WEBHOOK_SECRET }}
           INTERNAL_ALB: ${{ vars.INTERNAL_ALB }}
+          LOG_LEVEL: ${{ vars.LOG_LEVEL }}
           LOG_RETENTION_DAYS: ${{ vars.LOG_RETENTION_DAYS }}
           MANAGED_BUCKET_PREFIX: ${{ vars.MANAGED_BUCKET_PREFIX }}
           PORTAL_CATALOG_JSON: ${{ vars.PORTAL_CATALOG_JSON }}
@@ -220,7 +230,10 @@ jobs:
           GITHUB_TOKEN_SECRET_ARN="$(trim_value "${GITHUB_TOKEN_SECRET_ARN:-}")"
           GITHUB_WEBHOOK_SECRET_ARN="$(trim_value "${GITHUB_WEBHOOK_SECRET_ARN:-}")"
           HEALTH_CHECK_TARGETS="$(trim_value "${HEALTH_CHECK_TARGETS:-}")"
+          LOG_LEVEL="$(trim_value "${LOG_LEVEL:-info}")"
           PORTAL_CATALOG_JSON="$(trim_value "${PORTAL_CATALOG_JSON:-}")"
+          ALARM_NOTIFICATION_TOPIC_ARNS="$(trim_value "${ALARM_NOTIFICATION_TOPIC_ARNS:-}")"
+          ALARM_EMAIL_ENDPOINTS="$(trim_value "${ALARM_EMAIL_ENDPOINTS:-}")"
           VPC_ID="$(trim_value "${VPC_ID:-}")"
           ALB_SUBNET_IDS="$(trim_value "${ALB_SUBNET_IDS:-}")"
           PRIVATE_SUBNET_IDS="$(trim_value "${PRIVATE_SUBNET_IDS:-}")"
@@ -235,6 +248,12 @@ jobs:
           fi
           if [ -z "${HEALTH_CHECK_TARGETS}" ]; then
             HEALTH_CHECK_TARGETS="[]"
+          fi
+          if [ -z "${ALARM_NOTIFICATION_TOPIC_ARNS}" ]; then
+            ALARM_NOTIFICATION_TOPIC_ARNS="[]"
+          fi
+          if [ -z "${ALARM_EMAIL_ENDPOINTS}" ]; then
+            ALARM_EMAIL_ENDPOINTS="[]"
           fi
 
           jq -n \
@@ -255,6 +274,7 @@ jobs:
             --arg github_token "${PLATFORM_GITHUB_TOKEN:-}" \
             --arg github_webhook_secret_arn "${GITHUB_WEBHOOK_SECRET_ARN}" \
             --arg github_webhook_secret "${PLATFORM_GITHUB_WEBHOOK_SECRET:-}" \
+            --arg log_level "${LOG_LEVEL:-info}" \
             --arg portal_catalog_json "${PORTAL_CATALOG_JSON}" \
             --argjson alb_subnet_ids "${ALB_SUBNET_IDS}" \
             --argjson private_subnet_ids "${PRIVATE_SUBNET_IDS}" \
@@ -266,7 +286,16 @@ jobs:
             --argjson log_retention_days "${LOG_RETENTION_DAYS:-30}" \
             --argjson enable_execute_command "${ENABLE_EXECUTE_COMMAND:-false}" \
             --argjson allowed_kms_key_arns "${ALLOWED_KMS_KEY_ARNS:-[]}" \
+            --argjson alarm_5xx_threshold "${ALARM_5XX_THRESHOLD:-5}" \
+            --argjson alarm_cpu_threshold "${ALARM_CPU_THRESHOLD:-80}" \
+            --argjson alarm_email_endpoints "${ALARM_EMAIL_ENDPOINTS}" \
+            --argjson alarm_memory_threshold "${ALARM_MEMORY_THRESHOLD:-80}" \
+            --argjson alarm_notification_topic_arns "${ALARM_NOTIFICATION_TOPIC_ARNS}" \
+            --argjson alarm_target_response_time_seconds "${ALARM_TARGET_RESPONSE_TIME_SECONDS:-2}" \
+            --argjson alarm_unhealthy_host_threshold "${ALARM_UNHEALTHY_HOST_THRESHOLD:-1}" \
             --argjson create_github_oidc_provider "${CREATE_GITHUB_OIDC_PROVIDER:-false}" \
+            --argjson create_observability_sns_topic "${CREATE_OBSERVABILITY_SNS_TOPIC:-true}" \
+            --argjson enable_observability "${ENABLE_OBSERVABILITY:-true}" \
             --argjson github_auto_labels "${GITHUB_AUTO_LABELS:-true}" \
             --argjson github_secret_kms_key_arns "${GITHUB_SECRET_KMS_KEY_ARNS:-[]}" \
             --argjson health_check_targets "${HEALTH_CHECK_TARGETS}" \
@@ -289,6 +318,16 @@ jobs:
               log_retention_days: $log_retention_days,
               enable_execute_command: $enable_execute_command,
               allowed_kms_key_arns: $allowed_kms_key_arns,
+              log_level: $log_level,
+              enable_observability: $enable_observability,
+              create_observability_sns_topic: $create_observability_sns_topic,
+              alarm_notification_topic_arns: $alarm_notification_topic_arns,
+              alarm_email_endpoints: $alarm_email_endpoints,
+              alarm_cpu_threshold: $alarm_cpu_threshold,
+              alarm_memory_threshold: $alarm_memory_threshold,
+              alarm_5xx_threshold: $alarm_5xx_threshold,
+              alarm_unhealthy_host_threshold: $alarm_unhealthy_host_threshold,
+              alarm_target_response_time_seconds: $alarm_target_response_time_seconds,
               deployment_summary_topic_arn: $deployment_summary_topic_arn,
               github_api_url: $github_api_url,
               github_auto_labels: $github_auto_labels,

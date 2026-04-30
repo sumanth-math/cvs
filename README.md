@@ -116,6 +116,7 @@ The webhook handler supports:
 | `AWS_REGION` | `us-east-1` | AWS region for S3 API calls. |
 | `BUCKET_PREFIX` | `platform-dev` | Prefix used for generated bucket names. Make this globally unique. |
 | `DEFAULT_TAGS` | empty | Comma-separated `key=value` tags added to provisioned buckets. |
+| `LOG_LEVEL` | `info` | Structured JSON log level: `debug`, `info`, `warn`, or `error`. |
 | `GITHUB_WEBHOOK_SECRET` | empty | Optional GitHub webhook secret used to verify `X-Hub-Signature-256`. |
 | `GITHUB_TOKEN` | empty | Optional token used to label PRs, post branch convention comments, and create commit statuses. |
 | `GITHUB_BRANCH_NAME_PATTERN` | platform default | Regular expression enforced for pull request source branch names. |
@@ -133,6 +134,8 @@ Terraform under `deploy/terraform` creates:
 - ECS cluster, task definition, and Fargate service
 - Application Load Balancer and security groups
 - CloudWatch logs
+- CloudWatch dashboard and alarms for ECS CPU, ECS memory, ALB target errors, ALB unhealthy hosts, and ALB latency
+- SNS topic for CloudWatch alarm notifications
 - ECS task execution role
 - ECS task role with scoped S3 provisioning permissions
 - optional GitHub Actions OIDC deployment role
@@ -168,6 +171,14 @@ The workflow will create the Terraform state bucket if it does not already exist
 If Terraform reports that backend argument `bucket` or `key` is missing, confirm `TF_STATE_BUCKET` is set exactly to the bucket name, with no quotes or newline. The workflow trims common copy/paste whitespace, creates a temporary `backend.hcl`, and fails early when the value is blank or invalid.
 
 Optional variables include `AWS_REGION`, `PROJECT_NAME`, `ENVIRONMENT`, `CONTAINER_PLATFORM`, `CPU_ARCHITECTURE`, `ALLOWED_INGRESS_CIDR_BLOCKS`, `ALLOWED_KMS_KEY_ARNS`, and `TAGS_JSON`. List and map values should be JSON.
+
+Observability is enabled by default. The workflow accepts optional repository variables `LOG_LEVEL`, `ENABLE_OBSERVABILITY`, `CREATE_OBSERVABILITY_SNS_TOPIC`, `ALARM_EMAIL_ENDPOINTS`, `ALARM_NOTIFICATION_TOPIC_ARNS`, `ALARM_CPU_THRESHOLD`, `ALARM_MEMORY_THRESHOLD`, `ALARM_5XX_THRESHOLD`, `ALARM_UNHEALTHY_HOST_THRESHOLD`, and `ALARM_TARGET_RESPONSE_TIME_SECONDS`. List values should be JSON, for example:
+
+```json
+["platform-alerts@example.com"]
+```
+
+Email alarm subscriptions require confirming the AWS SNS subscription email before notifications are delivered. Terraform outputs the managed SNS topic ARN and CloudWatch dashboard name after deployment.
 
 To configure dependency aggregation in GitHub Actions, add repository variable `HEALTH_CHECK_TARGETS` as a JSON array. The repository variable accepts either `expected_status` or `expectedStatus`:
 

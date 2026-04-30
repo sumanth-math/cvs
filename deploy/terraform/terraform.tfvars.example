@@ -17,6 +17,7 @@ allowed_ingress_cidr_blocks = ["0.0.0.0/0"]
 image_tag                   = "latest"
 desired_count               = 2
 cpu_architecture            = "X86_64"
+log_level                   = "info"
 
 # Optional: allow callers to request aws:kms bucket encryption with these keys.
 allowed_kms_key_arns = [
@@ -37,6 +38,18 @@ github_secret_kms_key_arns      = []
 github_auto_labels              = true
 github_branch_name_pattern      = "^(feature|feat|fix|bugfix|hotfix|chore|docs|refactor|test|ci|build|release|dependabot)/[a-z0-9._-]+$"
 deployment_summary_topic_arn    = ""
+
+# Optional: CloudWatch observability. Terraform creates a dashboard, ECS/ALB
+# alarms, and an SNS topic by default. Email subscriptions require confirmation.
+enable_observability                   = true
+create_observability_sns_topic         = true
+alarm_email_endpoints                  = []
+alarm_notification_topic_arns          = []
+alarm_cpu_threshold                    = 80
+alarm_memory_threshold                 = 80
+alarm_5xx_threshold                    = 5
+alarm_unhealthy_host_threshold         = 1
+alarm_target_response_time_seconds     = 2
 
 # Optional: services aggregated by GET /v1/health-checks.
 health_check_targets = [

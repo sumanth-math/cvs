@@ -56,7 +56,15 @@ data "aws_iam_policy_document" "github_actions_deploy" {
     sid = "ManageServiceResources"
     actions = [
       "cloudwatch:DeleteAlarms",
+      "cloudwatch:DeleteDashboards",
       "cloudwatch:DescribeAlarms",
+      "cloudwatch:GetDashboard",
+      "cloudwatch:ListDashboards",
+      "cloudwatch:ListTagsForResource",
+      "cloudwatch:PutDashboard",
+      "cloudwatch:PutMetricAlarm",
+      "cloudwatch:TagResource",
+      "cloudwatch:UntagResource",
       "ec2:AssociateRouteTable",
       "ec2:AttachInternetGateway",
       "ec2:AuthorizeSecurityGroupEgress",
@@ -91,7 +99,19 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       "logs:ListTagsForResource",
       "logs:PutRetentionPolicy",
       "logs:TagResource",
-      "logs:UntagResource"
+      "logs:UntagResource",
+      "sns:CreateTopic",
+      "sns:DeleteTopic",
+      "sns:GetSubscriptionAttributes",
+      "sns:GetTopicAttributes",
+      "sns:ListSubscriptionsByTopic",
+      "sns:ListTagsForResource",
+      "sns:SetSubscriptionAttributes",
+      "sns:SetTopicAttributes",
+      "sns:Subscribe",
+      "sns:TagResource",
+      "sns:Unsubscribe",
+      "sns:UntagResource"
     ]
     resources = ["*"]
   }
