@@ -12,5 +12,10 @@ terraform {
     }
   }
 
-  backend "s3" {}
+  backend "s3" {
+    bucket  = "sumanth-math-cvs-terraform-state"
+    key     = "platform-service/terraform.tfstate"
+    region  = "us-east-1"
+    encrypt = true
+  }
 }
