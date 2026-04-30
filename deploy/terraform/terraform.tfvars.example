@@ -39,6 +39,11 @@ github_auto_labels              = true
 github_branch_name_pattern      = "^(feature|feat|fix|bugfix|hotfix|chore|docs|refactor|test|ci|build|release|dependabot)/[a-z0-9._-]+$"
 deployment_summary_topic_arn    = ""
 
+# Optional: record successful bucket provisioning API outputs in DynamoDB.
+enable_api_records                 = true
+api_records_table_name             = ""
+api_records_point_in_time_recovery = true
+
 # Optional: CloudWatch observability. Terraform creates a dashboard, ECS/ALB
 # alarms, and an SNS topic by default. Email subscriptions require confirmation.
 enable_observability                   = true

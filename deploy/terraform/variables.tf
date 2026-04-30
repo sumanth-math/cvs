@@ -104,6 +104,24 @@ variable "deployment_summary_topic_arn" {
   default     = ""
 }
 
+variable "enable_api_records" {
+  type        = bool
+  description = "Create a DynamoDB table and record successful API output/audit records."
+  default     = true
+}
+
+variable "api_records_table_name" {
+  type        = string
+  description = "Optional DynamoDB table name for API output/audit records. Defaults to project-environment-api-records."
+  default     = ""
+}
+
+variable "api_records_point_in_time_recovery" {
+  type        = bool
+  description = "Enable point-in-time recovery on the API records DynamoDB table."
+  default     = true
+}
+
 variable "health_check_targets" {
   type = list(object({
     name            = string

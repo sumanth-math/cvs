@@ -88,6 +88,67 @@ func TestCreateBucket(t *testing.T) {
 	}
 }
 
+func TestCreateBucketRecordsSuccessfulProvision(t *testing.T) {
+	expected := provisioner.BucketResult{
+		BucketName:        "acme-platform-payments-dev",
+		BucketARN:         "arn:aws:s3:::acme-platform-payments-dev",
+		Region:            "us-east-1",
+		VersioningEnabled: true,
+		Encryption:        "AES256",
+	}
+	recorder := &fakeBucketProvisionRecorder{}
+	handler := NewServer(&fakeBucketProvisioner{result: expected}, nil, WithBucketProvisionRecorder(recorder))
+	body := bytes.NewBufferString(`{"team":"payments","environment":"dev"}`)
+	request := httptest.NewRequest(http.MethodPost, "/v1/s3-buckets", body)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, response.Code)
+	}
+	if recorder.calls != 1 {
+		t.Fatalf("expected recorder to be called once, got %d", recorder.calls)
+	}
+	if recorder.request.Team != "payments" || recorder.request.Environment != "dev" {
+		t.Fatalf("unexpected recorder request: %+v", recorder.request)
+	}
+	if recorder.result.BucketName != expected.BucketName {
+		t.Fatalf("unexpected recorder result: %+v", recorder.result)
+	}
+	if recorder.requestID == "" {
+		t.Fatal("expected recorder request ID")
+	}
+	if recorder.requestID != response.Header().Get("X-Request-ID") {
+		t.Fatalf("expected request ID %q, got %q", response.Header().Get("X-Request-ID"), recorder.requestID)
+	}
+}
+
+func TestCreateBucketContinuesWhenRecordWriteFails(t *testing.T) {
+	expected := provisioner.BucketResult{
+		BucketName: "acme-platform-payments-dev",
+		BucketARN:  "arn:aws:s3:::acme-platform-payments-dev",
+		Region:     "us-east-1",
+		Encryption: "AES256",
+	}
+	recorder := &fakeBucketProvisionRecorder{err: fmt.Errorf("dynamodb unavailable")}
+	handler := NewServer(&fakeBucketProvisioner{result: expected}, nil, WithBucketProvisionRecorder(recorder))
+	body := bytes.NewBufferString(`{"team":"payments","environment":"dev"}`)
+	request := httptest.NewRequest(http.MethodPost, "/v1/s3-buckets", body)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, response.Code)
+	}
+	if recorder.calls != 1 {
+		t.Fatalf("expected recorder to be called once, got %d", recorder.calls)
+	}
+}
+
 func TestCreateBucketValidationError(t *testing.T) {
 	handler := NewServer(&fakeBucketProvisioner{
 		err: &provisioner.ValidationError{Fields: map[string]string{"team": "required"}},
@@ -415,6 +476,22 @@ type fakeBucketProvisioner struct {
 
 func (f *fakeBucketProvisioner) ProvisionBucket(context.Context, provisioner.BucketRequest) (provisioner.BucketResult, error) {
 	return f.result, f.err
+}
+
+type fakeBucketProvisionRecorder struct {
+	calls     int
+	request   provisioner.BucketRequest
+	result    provisioner.BucketResult
+	requestID string
+	err       error
+}
+
+func (f *fakeBucketProvisionRecorder) RecordBucketProvisioned(_ context.Context, request provisioner.BucketRequest, result provisioner.BucketResult, requestID string) error {
+	f.calls++
+	f.request = request
+	f.result = result
+	f.requestID = requestID
+	return f.err
 }
 
 type panicBucketProvisioner struct{}

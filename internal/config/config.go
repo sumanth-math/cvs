@@ -24,6 +24,7 @@ type Config struct {
 	DeploymentSNSTopicARN   string
 	HealthCheckTargets      []health.Target
 	PortalCatalog           catalog.Catalog
+	APIRecordsTableName     string
 }
 
 func Load() (Config, error) {
@@ -36,6 +37,7 @@ func Load() (Config, error) {
 		GitHubAPIURL:            getEnv("GITHUB_API_URL", "https://api.github.com"),
 		GitHubBranchNamePattern: getEnv("GITHUB_BRANCH_NAME_PATTERN", workflow.DefaultBranchNamePattern),
 		DeploymentSNSTopicARN:   strings.TrimSpace(os.Getenv("DEPLOYMENT_SUMMARY_TOPIC_ARN")),
+		APIRecordsTableName:     strings.TrimSpace(os.Getenv("API_RECORDS_TABLE_NAME")),
 		DefaultTags: map[string]string{
 			"ManagedBy": "platform-service",
 		},

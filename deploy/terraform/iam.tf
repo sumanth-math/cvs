@@ -63,6 +63,31 @@ resource "aws_iam_role_policy_attachment" "task_s3_provisioning" {
   policy_arn = aws_iam_policy.s3_provisioning.arn
 }
 
+data "aws_iam_policy_document" "api_records" {
+  count = var.enable_api_records ? 1 : 0
+
+  statement {
+    sid       = "WriteAPIRecords"
+    actions   = ["dynamodb:PutItem"]
+    resources = [aws_dynamodb_table.api_records[0].arn]
+  }
+}
+
+resource "aws_iam_policy" "api_records" {
+  count = var.enable_api_records ? 1 : 0
+
+  name        = "${local.name}-api-records"
+  description = "Allows the platform API to record important API outputs in DynamoDB."
+  policy      = data.aws_iam_policy_document.api_records[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "task_api_records" {
+  count = var.enable_api_records ? 1 : 0
+
+  role       = aws_iam_role.task.name
+  policy_arn = aws_iam_policy.api_records[0].arn
+}
+
 data "aws_iam_policy_document" "deployment_summary_sns" {
   count = var.deployment_summary_topic_arn != "" ? 1 : 0
 

@@ -83,6 +83,7 @@ resource "aws_ecs_service" "service" {
   depends_on = [
     aws_iam_role_policy_attachment.task_execution,
     aws_iam_role_policy_attachment.task_s3_provisioning,
+    aws_iam_role_policy_attachment.task_api_records,
     aws_iam_role_policy_attachment.deployment_summary_sns,
     aws_iam_role_policy_attachment.github_webhook_secrets,
     aws_lb_listener.http

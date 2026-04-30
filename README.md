@@ -13,6 +13,8 @@ This service exposes a small HTTP API that lets development teams request manage
 
 The API is written in Go, runs on AWS ECS Fargate, and is deployed with Terraform from GitHub Actions.
 
+When deployed with the default Terraform settings, successful bucket provisioning responses are also recorded to DynamoDB as audit records.
+
 ## API
 
 Start locally with AWS credentials that can create and configure S3 buckets:
@@ -51,6 +53,8 @@ Use KMS encryption:
   }
 }
 ```
+
+Successful `POST /v1/s3-buckets` calls can be recorded in DynamoDB when `API_RECORDS_TABLE_NAME` is configured. Records use type `s3_bucket_provisioned` and include the request ID, team, environment, bucket name, bucket ARN, region, versioning status, encryption mode, and tags.
 
 Health check:
 
@@ -124,6 +128,7 @@ The webhook handler supports:
 | `DEPLOYMENT_SUMMARY_TOPIC_ARN` | empty | Optional SNS topic ARN for deployment status summaries. |
 | `HEALTH_CHECK_TARGETS` | empty | JSON array of services checked by `GET /v1/health-checks`. |
 | `PORTAL_CATALOG_JSON` | empty | JSON catalog document for developer portal service, environment, and infrastructure metadata. |
+| `API_RECORDS_TABLE_NAME` | empty | Optional DynamoDB table name where successful bucket provisioning outputs are recorded. |
 
 ## Deployment
 
@@ -136,8 +141,9 @@ Terraform under `deploy/terraform` creates:
 - CloudWatch logs
 - CloudWatch dashboard and alarms for ECS CPU, ECS memory, ALB target errors, ALB unhealthy hosts, and ALB latency
 - SNS topic for CloudWatch alarm notifications
+- DynamoDB table for successful API output/audit records
 - ECS task execution role
-- ECS task role with scoped S3 provisioning permissions
+- ECS task role with scoped S3 provisioning and DynamoDB record-write permissions
 - optional GitHub Actions OIDC deployment role
 
 Copy `deploy/terraform/terraform.tfvars.example` to a real tfvars file or configure the same variables in GitHub Actions.
@@ -179,6 +185,21 @@ Observability is enabled by default. The workflow accepts optional repository va
 ```
 
 Email alarm subscriptions require confirming the AWS SNS subscription email before notifications are delivered. Terraform outputs the managed SNS topic ARN and CloudWatch dashboard name after deployment.
+
+API record storage is enabled by default. The workflow accepts optional repository variables `ENABLE_API_RECORDS`, `API_RECORDS_TABLE_NAME`, and `API_RECORDS_POINT_IN_TIME_RECOVERY`. If `API_RECORDS_TABLE_NAME` is blank, Terraform creates a table named like `platform-service-dev-api-records`.
+
+Query recent records with:
+
+```sh
+aws dynamodb query \
+  --table-name platform-service-dev-api-records \
+  --index-name record-type-created-at \
+  --key-condition-expression 'record_type = :type' \
+  --expression-attribute-values '{":type":{"S":"s3_bucket_provisioned"}}' \
+  --scan-index-forward false \
+  --limit 5 \
+  --region us-east-1
+```
 
 To configure dependency aggregation in GitHub Actions, add repository variable `HEALTH_CHECK_TARGETS` as a JSON array. The repository variable accepts either `expected_status` or `expectedStatus`:
 

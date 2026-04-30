@@ -43,6 +43,16 @@ output "task_role_arn" {
   value       = aws_iam_role.task.arn
 }
 
+output "api_records_table_name" {
+  description = "DynamoDB table that stores API output/audit records."
+  value       = var.enable_api_records ? aws_dynamodb_table.api_records[0].name : null
+}
+
+output "api_records_table_arn" {
+  description = "DynamoDB table ARN for API output/audit records."
+  value       = var.enable_api_records ? aws_dynamodb_table.api_records[0].arn : null
+}
+
 output "observability_dashboard_name" {
   description = "CloudWatch dashboard for service observability."
   value       = var.enable_observability ? aws_cloudwatch_dashboard.service[0].dashboard_name : null

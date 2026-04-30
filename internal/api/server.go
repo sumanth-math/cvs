@@ -26,6 +26,7 @@ const (
 	maxBucketRequestBytes  = 1 << 20
 	maxWebhookPayloadBytes = 2 << 20
 	maxQueryValueLength    = 128
+	recordWriteTimeout     = 3 * time.Second
 )
 
 var (
@@ -38,8 +39,13 @@ type BucketProvisioner interface {
 	ProvisionBucket(context.Context, provisioner.BucketRequest) (provisioner.BucketResult, error)
 }
 
+type BucketProvisionRecorder interface {
+	RecordBucketProvisioned(context.Context, provisioner.BucketRequest, provisioner.BucketResult, string) error
+}
+
 type Server struct {
 	buckets             BucketProvisioner
+	bucketRecords       BucketProvisionRecorder
 	catalog             CatalogReader
 	health              HealthChecker
 	githubWebhooks      GitHubWebhookProcessor
@@ -65,6 +71,12 @@ type ServerOption func(*Server)
 func WithHealthChecker(checker HealthChecker) ServerOption {
 	return func(server *Server) {
 		server.health = checker
+	}
+}
+
+func WithBucketProvisionRecorder(recorder BucketProvisionRecorder) ServerOption {
+	return func(server *Server) {
+		server.bucketRecords = recorder
 	}
 }
 
@@ -303,6 +315,20 @@ func (s *Server) handleCreateBucket(w http.ResponseWriter, r *http.Request) {
 		)
 		writeError(w, http.StatusInternalServerError, "provisioning_failed", "failed to provision requested bucket")
 		return
+	}
+
+	if s.bucketRecords != nil {
+		requestID, _ := r.Context().Value(requestIDKey{}).(string)
+		recordCtx, cancel := context.WithTimeout(r.Context(), recordWriteTimeout)
+		defer cancel()
+
+		if err := s.bucketRecords.RecordBucketProvisioned(recordCtx, request, result, requestID); err != nil {
+			s.logger.Error("bucket provision record write failed",
+				"error", err,
+				"bucket_name", result.BucketName,
+				"request_id", requestID,
+			)
+		}
 	}
 
 	writeJSON(w, http.StatusCreated, result)

@@ -12,10 +12,12 @@ import (
 	"time"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 
 	"github.com/your-org/platform-service/internal/api"
+	"github.com/your-org/platform-service/internal/audit"
 	"github.com/your-org/platform-service/internal/catalog"
 	"github.com/your-org/platform-service/internal/config"
 	"github.com/your-org/platform-service/internal/health"
@@ -53,6 +55,14 @@ func main() {
 		DefaultTags:  cfg.DefaultTags,
 	})
 
+	var bucketRecorder api.BucketProvisionRecorder
+	if cfg.APIRecordsTableName != "" {
+		dynamoClient := dynamodb.NewFromConfig(awsCfg, func(options *dynamodb.Options) {
+			options.Region = cfg.AWSRegion
+		})
+		bucketRecorder = audit.NewDynamoDBRecorder(dynamoClient, cfg.APIRecordsTableName)
+	}
+
 	var githubClient workflow.GitHubAPI
 	if cfg.GitHubToken != "" {
 		githubClient = workflow.NewGitHubClient(cfg.GitHubToken, cfg.GitHubAPIURL, nil)
@@ -83,7 +93,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           api.NewServer(bucketProvisioner, logger, api.WithHealthChecker(healthChecker), api.WithCatalog(portalCatalog), api.WithGitHubWebhooks(githubWebhooks), api.WithGitHubWebhookSecret(cfg.GitHubWebhookSecret)),
+		Handler:           api.NewServer(bucketProvisioner, logger, api.WithHealthChecker(healthChecker), api.WithBucketProvisionRecorder(bucketRecorder), api.WithCatalog(portalCatalog), api.WithGitHubWebhooks(githubWebhooks), api.WithGitHubWebhookSecret(cfg.GitHubWebhookSecret)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second,

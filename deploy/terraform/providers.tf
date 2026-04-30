@@ -13,10 +13,11 @@ data "aws_availability_zones" "available" {
 }
 
 locals {
-  name                 = "${var.project_name}-${var.environment}"
-  container_name       = "platform-api"
-  network_inputs_empty = trimspace(var.vpc_id) == "" && length(var.alb_subnet_ids) == 0 && length(var.private_subnet_ids) == 0
-  create_network       = local.network_inputs_empty
+  name                   = "${var.project_name}-${var.environment}"
+  api_records_table_name = trimspace(var.api_records_table_name) != "" ? trimspace(var.api_records_table_name) : "${local.name}-api-records"
+  container_name         = "platform-api"
+  network_inputs_empty   = trimspace(var.vpc_id) == "" && length(var.alb_subnet_ids) == 0 && length(var.private_subnet_ids) == 0
+  create_network         = local.network_inputs_empty
 
   vpc_id             = local.create_network ? aws_vpc.managed[0].id : trimspace(var.vpc_id)
   alb_subnet_ids     = local.create_network ? aws_subnet.public[*].id : var.alb_subnet_ids
@@ -53,6 +54,10 @@ locals {
       {
         name  = "DEFAULT_TAGS"
         value = "Environment=${var.environment},Project=${var.project_name},ManagedBy=platform-service"
+      },
+      {
+        name  = "API_RECORDS_TABLE_NAME"
+        value = var.enable_api_records ? aws_dynamodb_table.api_records[0].name : ""
       },
       {
         name  = "LOG_LEVEL"
