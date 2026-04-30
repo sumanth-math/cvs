@@ -1,7 +1,7 @@
 resource "aws_security_group" "alb" {
   name        = "${local.name}-alb"
   description = "Controls HTTP access to the platform API load balancer."
-  vpc_id      = var.vpc_id
+  vpc_id      = local.vpc_id
 }
 
 resource "aws_vpc_security_group_ingress_rule" "alb_http" {
@@ -23,7 +23,7 @@ resource "aws_vpc_security_group_egress_rule" "alb_all" {
 resource "aws_security_group" "service" {
   name        = "${local.name}-service"
   description = "Allows ALB traffic to the platform API tasks."
-  vpc_id      = var.vpc_id
+  vpc_id      = local.vpc_id
 }
 
 resource "aws_vpc_security_group_ingress_rule" "service_from_alb" {
@@ -42,10 +42,10 @@ resource "aws_vpc_security_group_egress_rule" "service_all" {
 
 resource "aws_lb" "service" {
   name               = local.name
-  internal           = var.internal_alb
+  internal           = local.internal_alb
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = var.alb_subnet_ids
+  subnets            = local.alb_subnet_ids
 }
 
 resource "aws_lb_target_group" "service" {
@@ -53,7 +53,7 @@ resource "aws_lb_target_group" "service" {
   port        = var.container_port
   protocol    = "HTTP"
   target_type = "ip"
-  vpc_id      = var.vpc_id
+  vpc_id      = local.vpc_id
 
   health_check {
     enabled             = true

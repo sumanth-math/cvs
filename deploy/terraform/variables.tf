@@ -18,17 +18,20 @@ variable "aws_region" {
 
 variable "vpc_id" {
   type        = string
-  description = "VPC where the load balancer and ECS service will run."
+  description = "Existing VPC where the load balancer and ECS service will run. Leave empty to create a small demo VPC."
+  default     = ""
 }
 
 variable "alb_subnet_ids" {
   type        = list(string)
-  description = "Subnets for the Application Load Balancer."
+  description = "Existing subnets for the Application Load Balancer. Leave empty along with vpc_id to create demo public subnets."
+  default     = []
 }
 
 variable "private_subnet_ids" {
   type        = list(string)
-  description = "Private subnets for ECS Fargate tasks. These subnets need outbound access to ECR and AWS APIs."
+  description = "Existing private subnets for ECS Fargate tasks. Leave empty along with vpc_id to reuse demo public subnets."
+  default     = []
 }
 
 variable "internal_alb" {

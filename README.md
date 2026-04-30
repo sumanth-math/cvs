@@ -71,6 +71,7 @@ curl http://localhost:8080/healthz
 
 Terraform under `deploy/terraform` creates:
 
+- a starter VPC with two public subnets when existing networking is not provided
 - ECR repository
 - ECS cluster, task definition, and Fargate service
 - Application Load Balancer and security groups
@@ -89,10 +90,17 @@ Configure these GitHub repository settings before running it:
 | --- | --- | --- |
 | `AWS_GITHUB_ACTIONS_ROLE_ARN` | secret | `arn:aws:iam::123456789012:role/platform-service-dev-github-actions` |
 | `TF_STATE_BUCKET` | variable | `my-company-terraform-state` |
+| `MANAGED_BUCKET_PREFIX` | variable | `my-company-platform-dev` |
+
+If you do not have VPC subnets yet, leave `VPC_ID`, `ALB_SUBNET_IDS`, and `PRIVATE_SUBNET_IDS` unset. Terraform will create a starter VPC with two public subnets, deploy a public ALB, and assign public IPs to ECS tasks. The task security group only allows inbound traffic from the ALB security group.
+
+For a production-style deployment, configure these optional repository variables instead:
+
+| Setting | Type | Example |
+| --- | --- | --- |
 | `VPC_ID` | variable | `vpc-0123456789abcdef0` |
 | `ALB_SUBNET_IDS` | variable | `["subnet-aaa","subnet-bbb"]` |
 | `PRIVATE_SUBNET_IDS` | variable | `["subnet-ccc","subnet-ddd"]` |
-| `MANAGED_BUCKET_PREFIX` | variable | `my-company-platform-dev` |
 
 By default, pushes run the Go tests only. To deploy from pushes to `main`, set repository variable `ENABLE_DEPLOY_ON_PUSH` to `true`. You can also deploy from the Actions tab with `workflow_dispatch`.
 

@@ -91,9 +91,9 @@ resource "aws_ecs_service" "service" {
   }
 
   network_configuration {
-    assign_public_ip = false
+    assign_public_ip = local.assign_public_ip
     security_groups  = [aws_security_group.service.id]
-    subnets          = var.private_subnet_ids
+    subnets          = local.service_subnet_ids
   }
 
   depends_on = [

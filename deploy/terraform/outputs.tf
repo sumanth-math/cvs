@@ -23,6 +23,21 @@ output "ecs_service_name" {
   value       = aws_ecs_service.service.name
 }
 
+output "vpc_id" {
+  description = "VPC used by the platform API."
+  value       = local.vpc_id
+}
+
+output "alb_subnet_ids" {
+  description = "Subnets used by the Application Load Balancer."
+  value       = local.alb_subnet_ids
+}
+
+output "service_subnet_ids" {
+  description = "Subnets used by ECS Fargate tasks."
+  value       = local.service_subnet_ids
+}
+
 output "task_role_arn" {
   description = "IAM role assumed by the platform API task."
   value       = aws_iam_role.task.arn

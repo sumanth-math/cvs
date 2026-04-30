@@ -2,14 +2,18 @@ project_name = "platform-service"
 environment  = "dev"
 aws_region   = "us-east-1"
 
-vpc_id             = "vpc-0123456789abcdef0"
-alb_subnet_ids     = ["subnet-aaaaaaaaaaaaaaaaa", "subnet-bbbbbbbbbbbbbbbbb"]
-private_subnet_ids = ["subnet-ccccccccccccccccc", "subnet-ddddddddddddddddd"]
+# Leave these empty to let Terraform create a starter VPC with two public subnets.
+# For production, set these to existing networking resources and use private subnets
+# with outbound access to ECR and AWS APIs.
+vpc_id             = ""
+alb_subnet_ids     = []
+private_subnet_ids = []
 
 managed_bucket_prefix = "my-company-platform-dev"
 
 internal_alb                = true
-allowed_ingress_cidr_blocks = ["10.0.0.0/8"]
+# Narrow this for public starter deployments, for example ["203.0.113.10/32"].
+allowed_ingress_cidr_blocks = ["0.0.0.0/0"]
 image_tag                   = "latest"
 desired_count               = 2
 cpu_architecture            = "X86_64"

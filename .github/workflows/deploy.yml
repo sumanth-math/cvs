@@ -118,6 +118,20 @@ jobs:
         run: |
           set -euo pipefail
 
+          trim_value() {
+            printf '%s' "$1" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+          }
+
+          ALB_SUBNET_IDS="$(trim_value "${ALB_SUBNET_IDS:-}")"
+          PRIVATE_SUBNET_IDS="$(trim_value "${PRIVATE_SUBNET_IDS:-}")"
+
+          if [ "$(printf '%s' "${ALB_SUBNET_IDS}" | tr -d '[:space:]')" = "[]" ]; then
+            ALB_SUBNET_IDS=""
+          fi
+          if [ "$(printf '%s' "${PRIVATE_SUBNET_IDS}" | tr -d '[:space:]')" = "[]" ]; then
+            PRIVATE_SUBNET_IDS=""
+          fi
+
           missing=0
           require_value() {
             local name="$1"
@@ -130,10 +144,17 @@ jobs:
 
           require_value "secret AWS_GITHUB_ACTIONS_ROLE_ARN" "${AWS_GITHUB_ACTIONS_ROLE_ARN}"
           require_value "repository variable TF_STATE_BUCKET" "${TF_STATE_BUCKET}"
-          require_value "repository variable VPC_ID" "${VPC_ID}"
-          require_value "repository variable ALB_SUBNET_IDS" "${ALB_SUBNET_IDS}"
-          require_value "repository variable PRIVATE_SUBNET_IDS" "${PRIVATE_SUBNET_IDS}"
           require_value "repository variable MANAGED_BUCKET_PREFIX" "${MANAGED_BUCKET_PREFIX}"
+
+          if [ -z "${VPC_ID}" ] && [ -z "${ALB_SUBNET_IDS}" ] && [ -z "${PRIVATE_SUBNET_IDS}" ]; then
+            echo "No VPC/subnet variables were provided; Terraform will create a demo VPC with two public subnets."
+          fi
+
+          if [ -n "${VPC_ID}" ] || [ -n "${ALB_SUBNET_IDS}" ] || [ -n "${PRIVATE_SUBNET_IDS}" ]; then
+            require_value "repository variable VPC_ID, or leave all VPC/subnet variables empty" "${VPC_ID}"
+            require_value "repository variable ALB_SUBNET_IDS, or leave all VPC/subnet variables empty" "${ALB_SUBNET_IDS}"
+            require_value "repository variable PRIVATE_SUBNET_IDS, or leave all VPC/subnet variables empty" "${PRIVATE_SUBNET_IDS}"
+          fi
 
           if [ "${missing}" -ne 0 ]; then
             echo "Set the missing GitHub secret/variables, then rerun this workflow."
@@ -176,10 +197,24 @@ jobs:
           set -euo pipefail
 
           : "${TF_STATE_BUCKET:?Set TF_STATE_BUCKET as a repository variable}"
-          : "${VPC_ID:?Set VPC_ID as a repository variable}"
-          : "${ALB_SUBNET_IDS:?Set ALB_SUBNET_IDS as a JSON array repository variable}"
-          : "${PRIVATE_SUBNET_IDS:?Set PRIVATE_SUBNET_IDS as a JSON array repository variable}"
+
+          trim_value() {
+            printf '%s' "$1" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+          }
+
+          MANAGED_BUCKET_PREFIX="$(trim_value "${MANAGED_BUCKET_PREFIX:-}")"
+          VPC_ID="$(trim_value "${VPC_ID:-}")"
+          ALB_SUBNET_IDS="$(trim_value "${ALB_SUBNET_IDS:-}")"
+          PRIVATE_SUBNET_IDS="$(trim_value "${PRIVATE_SUBNET_IDS:-}")"
+
           : "${MANAGED_BUCKET_PREFIX:?Set MANAGED_BUCKET_PREFIX as a repository variable}"
+
+          if [ -z "${ALB_SUBNET_IDS}" ]; then
+            ALB_SUBNET_IDS="[]"
+          fi
+          if [ -z "${PRIVATE_SUBNET_IDS}" ]; then
+            PRIVATE_SUBNET_IDS="[]"
+          fi
 
           jq -n \
             --arg project_name "${PROJECT_NAME:-platform-service}" \
