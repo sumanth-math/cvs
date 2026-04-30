@@ -94,6 +94,8 @@ Configure these GitHub repository settings before running it:
 
 If you do not have VPC subnets yet, leave `VPC_ID`, `ALB_SUBNET_IDS`, and `PRIVATE_SUBNET_IDS` unset. Terraform will create a starter VPC with two public subnets, deploy a public ALB, and assign public IPs to ECS tasks. The task security group only allows inbound traffic from the ALB security group.
 
+When using the starter VPC path, the `AWS_GITHUB_ACTIONS_ROLE_ARN` role needs EC2 permissions to create and delete VPC networking resources, including VPCs, subnets, route tables, routes, Internet Gateways, subnet attributes, VPC attributes, security groups, and tags.
+
 For a production-style deployment, configure these optional repository variables instead:
 
 | Setting | Type | Example |
