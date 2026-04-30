@@ -173,6 +173,48 @@ jobs:
 
           echo "ECR_REPOSITORY_NAME=${PROJECT_NAME:-platform-service}-${ENVIRONMENT:-dev}" >> "$GITHUB_ENV"
 
+      - name: Ensure Terraform state bucket
+        run: |
+          set -euo pipefail
+
+          if aws s3api head-bucket --bucket "${TF_STATE_BUCKET}" 2>/dev/null; then
+            echo "Terraform state bucket exists: ${TF_STATE_BUCKET}"
+          else
+            echo "Creating Terraform state bucket: ${TF_STATE_BUCKET}"
+            if [ "${AWS_REGION}" = "us-east-1" ]; then
+              aws s3api create-bucket \
+                --bucket "${TF_STATE_BUCKET}" \
+                --region "${AWS_REGION}"
+            else
+              aws s3api create-bucket \
+                --bucket "${TF_STATE_BUCKET}" \
+                --region "${AWS_REGION}" \
+                --create-bucket-configuration "LocationConstraint=${AWS_REGION}"
+            fi
+            aws s3api wait bucket-exists --bucket "${TF_STATE_BUCKET}"
+          fi
+
+          bucket_location="$(aws s3api get-bucket-location --bucket "${TF_STATE_BUCKET}" --query 'LocationConstraint' --output text)"
+          if [ "${bucket_location}" = "None" ]; then
+            bucket_location="us-east-1"
+          fi
+          if [ "${bucket_location}" != "${AWS_REGION}" ]; then
+            echo "::error::Terraform state bucket ${TF_STATE_BUCKET} is in ${bucket_location}, but AWS_REGION is ${AWS_REGION}."
+            exit 1
+          fi
+
+          aws s3api put-public-access-block \
+            --bucket "${TF_STATE_BUCKET}" \
+            --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+
+          aws s3api put-bucket-encryption \
+            --bucket "${TF_STATE_BUCKET}" \
+            --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+
+          aws s3api put-bucket-versioning \
+            --bucket "${TF_STATE_BUCKET}" \
+            --versioning-configuration Status=Enabled
+
       - name: Terraform fmt
         run: terraform fmt -check -recursive
 
