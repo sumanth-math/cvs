@@ -30,6 +30,7 @@ The main pieces are:
 - **AWS ECS Fargate deployment**: Terraform deploys the API container to ECS Fargate behind an Application Load Balancer, with ECR, IAM roles, CloudWatch logs, security groups, and optional starter networking.
 - **Observability**: Terraform creates CloudWatch alarms, an SNS alert topic, and a CloudWatch dashboard for ECS CPU, ECS memory, ALB 5xx errors, unhealthy targets, latency, and recent logs.
 - **GitHub Actions delivery pipeline**: `.github/workflows/deploy.yml` runs Go tests, builds and pushes the Docker image to ECR, prepares Terraform state storage, and applies the infrastructure.
+- **Integration tests**: HTTP-level integration tests under `integration/` can validate the deployed API after Terraform applies without creating AWS resources.
 
 In short: developers call a simple API, and the platform service performs controlled AWS actions on their behalf with auditability, observability, and repeatable infrastructure deployment.
 
@@ -151,6 +152,22 @@ The webhook handler supports:
 - `deployment_status`: publishes deployment summaries to SNS when `DEPLOYMENT_SUMMARY_TOPIC_ARN` is configured.
 - `ping`: acknowledges GitHub webhook setup checks.
 
+## Tests
+
+Run unit tests:
+
+```sh
+go test ./...
+```
+
+Run integration tests against a deployed service:
+
+```sh
+PLATFORM_API_BASE_URL=http://platform-service-dev-example.us-east-1.elb.amazonaws.com go test -v ./integration/...
+```
+
+The integration tests are stored separately in `integration/`. They call the live HTTP API and cover health, OpenAPI, catalog responses, JSON error handling, and S3 bucket request validation. They do not create S3 buckets.
+
 ## Configuration
 
 | Variable | Default | Description |
@@ -185,7 +202,7 @@ Terraform under `deploy/terraform` creates:
 - ECS task role with scoped S3 provisioning and DynamoDB record-write permissions
 - optional GitHub Actions OIDC deployment role
 
-The workflow in `.github/workflows/deploy.yml` runs tests, builds the container, pushes it to ECR, creates the Terraform state bucket when needed, and applies Terraform.
+The workflow in `.github/workflows/deploy.yml` runs tests, builds the container, pushes it to ECR, creates the Terraform state bucket when needed, and applies Terraform. After a successful deploy, a separate non-gating integration test job reads the Terraform `api_url` output and runs `go test -v -count=1 ./integration/...` against the deployed API. Integration test failures are visible in GitHub Actions, but they do not block or roll back the deployment.
 
 ### Deploy from GitHub Actions
 
