@@ -50,13 +50,51 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Normalize deployment inputs
+        env:
+          RAW_AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+          RAW_CONTAINER_PLATFORM: ${{ vars.CONTAINER_PLATFORM || 'linux/amd64' }}
+          RAW_MANAGED_BUCKET_PREFIX: ${{ vars.MANAGED_BUCKET_PREFIX }}
+          RAW_TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          RAW_TF_STATE_KEY: ${{ vars.TF_STATE_KEY || 'platform-service/terraform.tfstate' }}
+          RAW_VPC_ID: ${{ vars.VPC_ID }}
+        run: |
+          set -euo pipefail
+
+          trim_value() {
+            printf '%s' "$1" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+          }
+
+          AWS_REGION="$(trim_value "${RAW_AWS_REGION}")"
+          CONTAINER_PLATFORM="$(trim_value "${RAW_CONTAINER_PLATFORM}")"
+          MANAGED_BUCKET_PREFIX="$(trim_value "${RAW_MANAGED_BUCKET_PREFIX}")"
+          TF_STATE_BUCKET="$(trim_value "${RAW_TF_STATE_BUCKET}")"
+          TF_STATE_KEY="$(trim_value "${RAW_TF_STATE_KEY}")"
+          VPC_ID="$(trim_value "${RAW_VPC_ID}")"
+
+          if [ -z "${TF_STATE_BUCKET}" ]; then
+            echo "::error::Missing required deployment setting: repository variable TF_STATE_BUCKET"
+            exit 1
+          fi
+
+          if ! printf '%s' "${TF_STATE_BUCKET}" | grep -Eq '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$'; then
+            echo "::error::TF_STATE_BUCKET must be a valid S3 bucket name with no hidden whitespace."
+            exit 1
+          fi
+
+          {
+            echo "AWS_REGION=${AWS_REGION}"
+            echo "CONTAINER_PLATFORM=${CONTAINER_PLATFORM}"
+            echo "MANAGED_BUCKET_PREFIX=${MANAGED_BUCKET_PREFIX}"
+            echo "TF_STATE_BUCKET=${TF_STATE_BUCKET}"
+            echo "TF_STATE_KEY=${TF_STATE_KEY}"
+            echo "VPC_ID=${VPC_ID}"
+          } >> "$GITHUB_ENV"
+
       - name: Check deployment configuration
         env:
           ALB_SUBNET_IDS: ${{ vars.ALB_SUBNET_IDS }}
-          MANAGED_BUCKET_PREFIX: ${{ vars.MANAGED_BUCKET_PREFIX }}
           PRIVATE_SUBNET_IDS: ${{ vars.PRIVATE_SUBNET_IDS }}
-          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
-          VPC_ID: ${{ vars.VPC_ID }}
         run: |
           set -euo pipefail
 
