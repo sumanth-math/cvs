@@ -155,6 +155,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) routes() {
+	s.mux.HandleFunc("GET /openapi.json", s.handleOpenAPI)
+	s.mux.HandleFunc("GET /swagger", s.handleSwaggerUI)
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
 	s.mux.HandleFunc("GET /v1/health-checks", s.handleHealthChecks)
 	s.mux.HandleFunc("GET /v1/catalog", s.handleCatalog)
@@ -171,6 +173,26 @@ func (s *Server) routes() {
 
 func (s *Server) handleNotFound(w http.ResponseWriter, _ *http.Request) {
 	writeError(w, http.StatusNotFound, "not_found", "route not found")
+}
+
+func (s *Server) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
+	if !validateAllowedQuery(w, r) {
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/vnd.oai.openapi+json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(openAPIJSON))
+}
+
+func (s *Server) handleSwaggerUI(w http.ResponseWriter, r *http.Request) {
+	if !validateAllowedQuery(w, r) {
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(swaggerUIHTML))
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -613,7 +635,9 @@ func hasControlCharacter(value string) bool {
 
 func allowedMethodsForPath(path string) ([]string, bool) {
 	switch {
-	case path == "/healthz",
+	case path == "/openapi.json",
+		path == "/swagger",
+		path == "/healthz",
 		path == "/v1/health-checks",
 		path == "/v1/catalog",
 		path == "/v1/catalog/services",

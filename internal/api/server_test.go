@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +28,61 @@ func TestHealth(t *testing.T) {
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+}
+
+func TestOpenAPIJSON(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil)
+	request := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+	if contentType := response.Header().Get("Content-Type"); contentType != "application/vnd.oai.openapi+json" {
+		t.Fatalf("unexpected content type: %q", contentType)
+	}
+
+	var spec map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&spec); err != nil {
+		t.Fatalf("decode openapi document: %v", err)
+	}
+	if spec["openapi"] != "3.0.3" {
+		t.Fatalf("unexpected openapi version: %v", spec["openapi"])
+	}
+	paths, ok := spec["paths"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected paths object, got %T", spec["paths"])
+	}
+	if _, ok := paths["/v1/s3-buckets"]; !ok {
+		t.Fatal("expected /v1/s3-buckets path in openapi document")
+	}
+	if _, ok := paths["/v1/github/webhook"]; !ok {
+		t.Fatal("expected /v1/github/webhook path in openapi document")
+	}
+}
+
+func TestSwaggerUI(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil)
+	request := httptest.NewRequest(http.MethodGet, "/swagger", nil)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+	if contentType := response.Header().Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+		t.Fatalf("unexpected content type: %q", contentType)
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, "SwaggerUIBundle") {
+		t.Fatal("expected Swagger UI bundle reference")
+	}
+	if !strings.Contains(body, "/openapi.json") {
+		t.Fatal("expected Swagger UI to load /openapi.json")
 	}
 }
 

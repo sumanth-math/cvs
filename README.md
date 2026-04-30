@@ -43,6 +43,13 @@ export BUCKET_PREFIX=my-company-platform
 go run ./cmd/platform-api
 ```
 
+Swagger/OpenAPI documentation:
+
+```sh
+open http://localhost:8080/swagger
+curl http://localhost:8080/openapi.json
+```
+
 Create a bucket:
 
 ```sh
