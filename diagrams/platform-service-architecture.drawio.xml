@@ -1,0 +1,136 @@
+<mxfile host="app.diagrams.net" modified="2026-04-30T00:00:00.000Z" agent="Codex" version="24.7.17" type="device">
+  <diagram id="platform-service-architecture" name="Platform Service Architecture">
+    <mxGraphModel dx="1460" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="github-zone" value="GitHub" style="swimlane;html=1;rounded=0;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="360" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="aws-zone" value="AWS Account" style="swimlane;html=1;rounded=0;whiteSpace=wrap;fillColor=#fff7e6;strokeColor=#d79b00;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="450" y="40" width="870" height="710" as="geometry" />
+        </mxCell>
+        <mxCell id="runtime-zone" value="Runtime Workflows" style="swimlane;html=1;rounded=0;whiteSpace=wrap;fillColor=#eef7ff;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="330" width="360" height="310" as="geometry" />
+        </mxCell>
+        <mxCell id="dev-teams" value="Development Teams" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="370" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="github-webhook" value="GitHub Webhooks&lt;br&gt;pull_request, deployment_status, ping" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="230" y="370" width="130" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="health-targets" value="Configured Health Targets" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="520" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="repo" value="Repository&lt;br&gt;sumanth-math/cvs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="90" width="130" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="actions" value="GitHub Actions&lt;br&gt;test, build, deploy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="240" y="90" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="oidc" value="OIDC Assume Role&lt;br&gt;AWS_GITHUB_ACTIONS_ROLE_ARN" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="140" y="190" width="170" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="terraform-state" value="S3 Terraform State Bucket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="90" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="terraform" value="Terraform Apply&lt;br&gt;deploy/terraform" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="700" y="90" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ecr" value="Amazon ECR&lt;br&gt;container image" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="890" y="90" width="130" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="vpc" value="VPC and Subnets&lt;br&gt;starter or existing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="210" width="150" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="alb" value="Application Load Balancer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="700" y="220" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ecs" value="ECS Fargate Service&lt;br&gt;Platform API container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="920" y="210" width="170" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="task-role" value="Task IAM Role&lt;br&gt;scoped S3, DynamoDB, SNS permissions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="210" width="150" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="s3-buckets" value="Managed S3 Buckets&lt;br&gt;guarded team resources" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="510" y="390" width="150" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="dynamodb" value="DynamoDB&lt;br&gt;API audit records" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="390" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="sns" value="SNS Topics&lt;br&gt;deployment summaries and alarms" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="920" y="390" width="150" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="cloudwatch" value="CloudWatch&lt;br&gt;logs, alarms, dashboard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="390" width="150" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="github-api" value="GitHub API&lt;br&gt;labels, statuses, comments" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="510" y="560" width="150" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="catalog" value="Portal Catalog JSON&lt;br&gt;services, environments, infrastructure" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="560" width="160" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-repo-actions" value="push or workflow_dispatch" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="repo" target="actions">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-actions-oidc" value="assume role" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="actions" target="oidc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-oidc-terraform" value="AWS credentials" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="oidc" target="terraform">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-actions-ecr" value="docker buildx push" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="actions" target="ecr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-terraform-state" value="backend state" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="terraform" target="terraform-state">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-terraform-vpc" value="creates/configures" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="terraform" target="vpc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-terraform-alb" value="creates" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="terraform" target="alb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-terraform-ecs" value="deploys" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="terraform" target="ecs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-ecr-ecs" value="image" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="ecr" target="ecs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-ecs-role" value="assumes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="ecs" target="task-role">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-dev-alb" value="HTTP API calls" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#6c8ebf;" edge="1" parent="1" source="dev-teams" target="alb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-webhook-alb" value="/v1/github/webhook" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#6c8ebf;" edge="1" parent="1" source="github-webhook" target="alb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-health-alb" value="/v1/health-checks" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#6c8ebf;" edge="1" parent="1" source="health-targets" target="alb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-alb-ecs" value="routes requests" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="alb" target="ecs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-ecs-s3" value="create/configure bucket" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#82b366;" edge="1" parent="1" source="ecs" target="s3-buckets">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-ecs-dynamodb" value="write audit record" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#82b366;" edge="1" parent="1" source="ecs" target="dynamodb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-ecs-sns" value="publish summaries" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#82b366;" edge="1" parent="1" source="ecs" target="sns">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-ecs-cloudwatch" value="logs and metrics" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#82b366;" edge="1" parent="1" source="ecs" target="cloudwatch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-ecs-github-api" value="labels, statuses, comments" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#82b366;" edge="1" parent="1" source="ecs" target="github-api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-ecs-catalog" value="serves catalog endpoints" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#82b366;" edge="1" parent="1" source="ecs" target="catalog">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

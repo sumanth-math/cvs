@@ -15,6 +15,24 @@ The API is written in Go, runs on AWS ECS Fargate, and is deployed with Terrafor
 
 When deployed with the default Terraform settings, successful bucket provisioning responses are also recorded to DynamoDB as audit records.
 
+## What Has Been Built
+
+This repository contains a small internal developer platform service. It gives development teams a self-service HTTP API for common platform workflows, while keeping the actual AWS permissions and guardrails inside a centrally managed ECS service.
+
+The main pieces are:
+
+- **Go API service**: an HTTP service under `cmd/platform-api` and `internal/` with structured JSON responses, request validation, consistent error handling, and JSON logs.
+- **S3 self-service provisioning**: `POST /v1/s3-buckets` creates guarded S3 buckets with deterministic names, encryption, public access blocking, ownership controls, optional versioning, and platform/team tags.
+- **DynamoDB audit records**: successful bucket provisioning responses are written to a DynamoDB table so platform teams can inspect what was created, when it was created, and which team/environment requested it.
+- **GitHub webhook workflow handler**: `POST /v1/github/webhook` processes GitHub events, including pull request auto-labeling, branch naming convention status checks, deployment summary publishing through SNS, and webhook `ping` validation.
+- **Aggregated health checks**: `GET /v1/health-checks` checks configured downstream services and returns an aggregate healthy/unhealthy result.
+- **Developer portal catalog backend**: `GET /v1/catalog` and related catalog endpoints expose service, environment, and infrastructure metadata from `PORTAL_CATALOG_JSON`.
+- **AWS ECS Fargate deployment**: Terraform deploys the API container to ECS Fargate behind an Application Load Balancer, with ECR, IAM roles, CloudWatch logs, security groups, and optional starter networking.
+- **Observability**: Terraform creates CloudWatch alarms, an SNS alert topic, and a CloudWatch dashboard for ECS CPU, ECS memory, ALB 5xx errors, unhealthy targets, latency, and recent logs.
+- **GitHub Actions delivery pipeline**: `.github/workflows/deploy.yml` runs Go tests, builds and pushes the Docker image to ECR, prepares Terraform state storage, and applies the infrastructure.
+
+In short: developers call a simple API, and the platform service performs controlled AWS actions on their behalf with auditability, observability, and repeatable infrastructure deployment.
+
 ## API
 
 Start locally with AWS credentials that can create and configure S3 buckets:
@@ -146,11 +164,15 @@ Terraform under `deploy/terraform` creates:
 - ECS task role with scoped S3 provisioning and DynamoDB record-write permissions
 - optional GitHub Actions OIDC deployment role
 
-Copy `deploy/terraform/terraform.tfvars.example` to a real tfvars file or configure the same variables in GitHub Actions.
+The workflow in `.github/workflows/deploy.yml` runs tests, builds the container, pushes it to ECR, creates the Terraform state bucket when needed, and applies Terraform.
 
-The workflow in `.github/workflows/deploy.yml` runs tests, builds the container, pushes it to ECR, and applies Terraform.
+### Deploy from GitHub Actions
 
-Configure these GitHub repository settings before running it:
+1. Create or choose an AWS IAM role that GitHub Actions can assume with OIDC.
+
+   Save the role ARN as the GitHub Actions secret `AWS_GITHUB_ACTIONS_ROLE_ARN`. The role must trust `token.actions.githubusercontent.com` for this repository and branch, and it must be able to manage the Terraform resources listed above. If you use the starter VPC path, include EC2 networking permissions. If API records are enabled, include DynamoDB table permissions.
+
+2. Configure the required GitHub repository settings:
 
 | Setting | Type | Example |
 | --- | --- | --- |
@@ -158,11 +180,21 @@ Configure these GitHub repository settings before running it:
 | `TF_STATE_BUCKET` | variable | `my-company-terraform-state` |
 | `MANAGED_BUCKET_PREFIX` | variable | `my-company-platform-dev` |
 
-If you do not have VPC subnets yet, leave `VPC_ID`, `ALB_SUBNET_IDS`, and `PRIVATE_SUBNET_IDS` unset. Terraform will create a starter VPC with two public subnets, deploy a public ALB, and assign public IPs to ECS tasks. The task security group only allows inbound traffic from the ALB security group.
+   With the GitHub CLI, the same setup looks like:
+
+```sh
+gh secret set AWS_GITHUB_ACTIONS_ROLE_ARN --body 'arn:aws:iam::123456789012:role/platform-service-dev-github-actions'
+gh variable set TF_STATE_BUCKET --body 'my-company-terraform-state'
+gh variable set MANAGED_BUCKET_PREFIX --body 'my-company-platform-dev'
+```
+
+3. Decide how networking should be created.
+
+   For a starter deployment, leave `VPC_ID`, `ALB_SUBNET_IDS`, and `PRIVATE_SUBNET_IDS` unset. Terraform will create a starter VPC with two public subnets, deploy a public ALB, and assign public IPs to ECS tasks. The task security group only allows inbound traffic from the ALB security group.
 
 When using the starter VPC path, the `AWS_GITHUB_ACTIONS_ROLE_ARN` role needs EC2 permissions to create and delete VPC networking resources, including VPCs, subnets, route tables, routes, Internet Gateways, subnet attributes, VPC attributes, security groups, and tags.
 
-For a production-style deployment, configure these optional repository variables instead:
+   For a production-style deployment, configure these optional repository variables instead:
 
 | Setting | Type | Example |
 | --- | --- | --- |
@@ -170,11 +202,86 @@ For a production-style deployment, configure these optional repository variables
 | `ALB_SUBNET_IDS` | variable | `["subnet-aaa","subnet-bbb"]` |
 | `PRIVATE_SUBNET_IDS` | variable | `["subnet-ccc","subnet-ddd"]` |
 
-By default, pushes run the Go tests only. To deploy from pushes to `main`, set repository variable `ENABLE_DEPLOY_ON_PUSH` to `true`. You can also deploy from the Actions tab with `workflow_dispatch`.
+4. Run the deployment.
 
-The workflow will create the Terraform state bucket if it does not already exist, then enable versioning, AES256 encryption, and S3 public access blocking. The GitHub Actions AWS role must have S3 permissions for that bucket.
+   By default, pushes run the Go tests only. To deploy from pushes to `main`, set repository variable `ENABLE_DEPLOY_ON_PUSH` to `true`:
+
+```sh
+gh variable set ENABLE_DEPLOY_ON_PUSH --body 'true'
+git push origin main
+```
+
+   You can also deploy manually from the Actions tab by running the `Deploy Platform API` workflow, or with:
+
+```sh
+gh workflow run "Deploy Platform API" --ref main
+gh run list --workflow "Deploy Platform API" --limit 1
+```
+
+5. Get the deployed API URL.
+
+   The Terraform apply step prints the `api_url` output in the workflow logs. You can also retrieve the ALB DNS name from AWS:
+
+```sh
+aws elbv2 describe-load-balancers \
+  --names platform-service-dev \
+  --query 'LoadBalancers[0].DNSName' \
+  --output text \
+  --region us-east-1
+```
+
+6. Smoke test the service.
+
+```sh
+export API_URL='http://platform-service-dev-example.us-east-1.elb.amazonaws.com'
+
+curl -sS "${API_URL}/healthz"
+curl -sS "${API_URL}/v1/catalog/services"
+```
+
+7. Test S3 self-service provisioning.
+
+```sh
+curl -sS -X POST "${API_URL}/v1/s3-buckets" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "team": "payments",
+    "environment": "dev",
+    "enableVersioning": true,
+    "tags": {
+      "CostCenter": "payments"
+    }
+  }'
+```
+
+8. Confirm the DynamoDB audit record.
+
+   Use the `bucketName` from the API response:
+
+```sql
+SELECT *
+FROM "platform-service-dev-api-records"."bucket-name"
+WHERE bucket_name = 'my-company-platform-dev-payments-dev'
+```
+
+   Or use the AWS CLI:
+
+```sh
+aws dynamodb query \
+  --table-name platform-service-dev-api-records \
+  --index-name record-type-created-at \
+  --key-condition-expression 'record_type = :type' \
+  --expression-attribute-values '{":type":{"S":"s3_bucket_provisioned"}}' \
+  --scan-index-forward false \
+  --limit 5 \
+  --region us-east-1
+```
+
+The workflow creates the Terraform state bucket if it does not already exist, then enables versioning, AES256 encryption, and S3 public access blocking. The GitHub Actions AWS role must have S3 permissions for that bucket.
 
 If Terraform reports that backend argument `bucket` or `key` is missing, confirm `TF_STATE_BUCKET` is set exactly to the bucket name, with no quotes or newline. The workflow trims common copy/paste whitespace, creates a temporary `backend.hcl`, and fails early when the value is blank or invalid.
+
+### Optional Deployment Settings
 
 Optional variables include `AWS_REGION`, `PROJECT_NAME`, `ENVIRONMENT`, `CONTAINER_PLATFORM`, `CPU_ARCHITECTURE`, `ALLOWED_INGRESS_CIDR_BLOCKS`, `ALLOWED_KMS_KEY_ARNS`, and `TAGS_JSON`. List and map values should be JSON.
 
