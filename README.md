@@ -98,7 +98,7 @@ By default, pushes run the Go tests only. To deploy from pushes to `main`, set r
 
 The workflow will create the Terraform state bucket if it does not already exist, then enable versioning, AES256 encryption, and S3 public access blocking. The GitHub Actions AWS role must have S3 permissions for that bucket.
 
-If Terraform reports that backend argument `bucket` is missing, confirm `TF_STATE_BUCKET` is set exactly to the bucket name, with no quotes or newline. The workflow trims common copy/paste whitespace and fails early when the value is blank or invalid.
+If Terraform reports that backend argument `bucket` or `key` is missing, confirm `TF_STATE_BUCKET` is set exactly to the bucket name, with no quotes or newline. The workflow trims common copy/paste whitespace, creates a temporary `backend.hcl`, and fails early when the value is blank or invalid.
 
 Optional variables include `AWS_REGION`, `PROJECT_NAME`, `ENVIRONMENT`, `CONTAINER_PLATFORM`, `CPU_ARCHITECTURE`, `ALLOWED_INGRESS_CIDR_BLOCKS`, `ALLOWED_KMS_KEY_ARNS`, and `TAGS_JSON`. List and map values should be JSON.
 

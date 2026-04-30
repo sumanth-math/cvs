@@ -72,6 +72,16 @@ jobs:
           TF_STATE_KEY="$(trim_value "${RAW_TF_STATE_KEY}")"
           VPC_ID="$(trim_value "${RAW_VPC_ID}")"
 
+          if [ -z "${AWS_REGION}" ]; then
+            AWS_REGION="us-east-1"
+          fi
+          if [ -z "${CONTAINER_PLATFORM}" ]; then
+            CONTAINER_PLATFORM="linux/amd64"
+          fi
+          if [ -z "${TF_STATE_KEY}" ]; then
+            TF_STATE_KEY="platform-service/terraform.tfstate"
+          fi
+
           if [ -z "${TF_STATE_BUCKET}" ]; then
             echo "::error::Missing required deployment setting: repository variable TF_STATE_BUCKET"
             exit 1
@@ -90,6 +100,16 @@ jobs:
             echo "TF_STATE_KEY=${TF_STATE_KEY}"
             echo "VPC_ID=${VPC_ID}"
           } >> "$GITHUB_ENV"
+
+          backend_config="${GITHUB_WORKSPACE}/${TF_WORKING_DIR}/backend.hcl"
+          cat > "${backend_config}" <<EOF
+          bucket = "${TF_STATE_BUCKET}"
+          key    = "${TF_STATE_KEY}"
+          region = "${AWS_REGION}"
+          encrypt = true
+          EOF
+
+          echo "TF_BACKEND_CONFIG=${backend_config}" >> "$GITHUB_ENV"
 
       - name: Check deployment configuration
         env:
@@ -259,10 +279,8 @@ jobs:
       - name: Terraform init
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          terraform init \
-            -backend-config="bucket=${TF_STATE_BUCKET}" \
-            -backend-config="key=${TF_STATE_KEY}" \
-            -backend-config="region=${AWS_REGION}"
+          test -s "${TF_BACKEND_CONFIG}"
+          terraform init -backend-config="${TF_BACKEND_CONFIG}"
 
       - name: Terraform validate
         working-directory: ${{ env.TF_WORKING_DIR }}
