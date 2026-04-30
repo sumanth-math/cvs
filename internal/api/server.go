@@ -43,9 +43,19 @@ type BucketProvisionRecorder interface {
 	RecordBucketProvisioned(context.Context, provisioner.BucketRequest, provisioner.BucketResult, string) error
 }
 
+type SNSTopicProvisioner interface {
+	ProvisionTopic(context.Context, provisioner.SNSTopicRequest) (provisioner.SNSTopicResult, error)
+}
+
+type SNSTopicProvisionRecorder interface {
+	RecordSNSTopicProvisioned(context.Context, provisioner.SNSTopicRequest, provisioner.SNSTopicResult, string) error
+}
+
 type Server struct {
 	buckets             BucketProvisioner
 	bucketRecords       BucketProvisionRecorder
+	snsTopics           SNSTopicProvisioner
+	snsTopicRecords     SNSTopicProvisionRecorder
 	catalog             CatalogReader
 	health              HealthChecker
 	githubWebhooks      GitHubWebhookProcessor
@@ -77,6 +87,18 @@ func WithHealthChecker(checker HealthChecker) ServerOption {
 func WithBucketProvisionRecorder(recorder BucketProvisionRecorder) ServerOption {
 	return func(server *Server) {
 		server.bucketRecords = recorder
+	}
+}
+
+func WithSNSTopicProvisioner(provisioner SNSTopicProvisioner) ServerOption {
+	return func(server *Server) {
+		server.snsTopics = provisioner
+	}
+}
+
+func WithSNSTopicProvisionRecorder(recorder SNSTopicProvisionRecorder) ServerOption {
+	return func(server *Server) {
+		server.snsTopicRecords = recorder
 	}
 }
 
@@ -167,6 +189,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /v1/catalog/infrastructure", s.handleCatalogInfrastructure)
 	s.mux.HandleFunc("GET /v1/catalog/infrastructure/{id}", s.handleCatalogInfrastructureResource)
 	s.mux.HandleFunc("POST /v1/s3-buckets", s.handleCreateBucket)
+	s.mux.HandleFunc("POST /v1/sns-topics", s.handleCreateSNSTopic)
 	s.mux.HandleFunc("POST /v1/github/webhook", s.handleGitHubWebhook)
 	s.mux.HandleFunc("/", s.handleNotFound)
 }
@@ -348,6 +371,56 @@ func (s *Server) handleCreateBucket(w http.ResponseWriter, r *http.Request) {
 			s.logger.Error("bucket provision record write failed",
 				"error", err,
 				"bucket_name", result.BucketName,
+				"request_id", requestID,
+			)
+		}
+	}
+
+	writeJSON(w, http.StatusCreated, result)
+}
+
+func (s *Server) handleCreateSNSTopic(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	var request provisioner.SNSTopicRequest
+	if !decodeStrictJSONBody(w, r, &request, maxBucketRequestBytes) {
+		return
+	}
+
+	if s.snsTopics == nil {
+		writeError(w, http.StatusServiceUnavailable, "provisioner_unavailable", "sns topic provisioner is not configured")
+		return
+	}
+
+	result, err := s.snsTopics.ProvisionTopic(r.Context(), request)
+	if err != nil {
+		var validationErr *provisioner.ValidationError
+		if errors.As(err, &validationErr) {
+			writeJSON(w, http.StatusBadRequest, errorResponse{
+				Error:   "validation_failed",
+				Message: validationErr.Error(),
+				Fields:  validationErr.Fields,
+			})
+			return
+		}
+
+		s.logger.Error("sns topic provisioning failed",
+			"error", err,
+			"request_id", r.Context().Value(requestIDKey{}),
+		)
+		writeError(w, http.StatusInternalServerError, "provisioning_failed", "failed to provision requested SNS topic")
+		return
+	}
+
+	if s.snsTopicRecords != nil {
+		requestID, _ := r.Context().Value(requestIDKey{}).(string)
+		recordCtx, cancel := context.WithTimeout(r.Context(), recordWriteTimeout)
+		defer cancel()
+
+		if err := s.snsTopicRecords.RecordSNSTopicProvisioned(recordCtx, request, result, requestID); err != nil {
+			s.logger.Error("sns topic provision record write failed",
+				"error", err,
+				"topic_name", result.TopicName,
 				"request_id", requestID,
 			)
 		}
@@ -648,6 +721,7 @@ func allowedMethodsForPath(path string) ([]string, bool) {
 		isSingleSegmentChild(path, "/v1/catalog/infrastructure/"):
 		return []string{http.MethodGet}, true
 	case path == "/v1/s3-buckets",
+		path == "/v1/sns-topics",
 		path == "/v1/github/webhook":
 		return []string{http.MethodPost}, true
 	default:

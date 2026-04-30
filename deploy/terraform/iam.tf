@@ -63,6 +63,30 @@ resource "aws_iam_role_policy_attachment" "task_s3_provisioning" {
   policy_arn = aws_iam_policy.s3_provisioning.arn
 }
 
+data "aws_iam_policy_document" "sns_topic_provisioning" {
+  statement {
+    sid = "ProvisionPrefixedTopics"
+    actions = [
+      "sns:CreateTopic",
+      "sns:TagResource"
+    ]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:sns:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${var.managed_bucket_prefix}-*"
+    ]
+  }
+}
+
+resource "aws_iam_policy" "sns_topic_provisioning" {
+  name        = "${local.name}-sns-topic-provisioning"
+  description = "Allows the platform API to provision guarded SNS topics with the managed prefix."
+  policy      = data.aws_iam_policy_document.sns_topic_provisioning.json
+}
+
+resource "aws_iam_role_policy_attachment" "task_sns_topic_provisioning" {
+  role       = aws_iam_role.task.name
+  policy_arn = aws_iam_policy.sns_topic_provisioning.arn
+}
+
 data "aws_iam_policy_document" "api_records" {
   count = var.enable_api_records ? 1 : 0
 

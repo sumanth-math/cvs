@@ -59,6 +59,9 @@ func TestOpenAPIJSON(t *testing.T) {
 	if _, ok := paths["/v1/s3-buckets"]; !ok {
 		t.Fatal("expected /v1/s3-buckets path in openapi document")
 	}
+	if _, ok := paths["/v1/sns-topics"]; !ok {
+		t.Fatal("expected /v1/sns-topics path in openapi document")
+	}
 	if _, ok := paths["/v1/github/webhook"]; !ok {
 		t.Fatal("expected /v1/github/webhook path in openapi document")
 	}
@@ -274,6 +277,104 @@ func TestCreateBucketRecoversFromPanic(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, response.Code)
 	}
 	assertErrorCode(t, response, "internal_error")
+}
+
+func TestCreateSNSTopic(t *testing.T) {
+	expected := provisioner.SNSTopicResult{
+		TopicName:      "acme-platform-payments-dev",
+		TopicARN:       "arn:aws:sns:us-east-1:123456789012:acme-platform-payments-dev",
+		Region:         "us-east-1",
+		KMSMasterKeyID: "alias/aws/sns",
+		Tags:           map[string]string{"Team": "payments", "Environment": "dev"},
+	}
+	handler := NewServer(&fakeBucketProvisioner{}, nil, WithSNSTopicProvisioner(&fakeSNSTopicProvisioner{result: expected}))
+	body := bytes.NewBufferString(`{"team":"payments","environment":"dev"}`)
+	request := httptest.NewRequest(http.MethodPost, "/v1/sns-topics", body)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, response.Code)
+	}
+
+	var actual provisioner.SNSTopicResult
+	if err := json.NewDecoder(response.Body).Decode(&actual); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if actual.TopicName != expected.TopicName {
+		t.Fatalf("unexpected topic name: %s", actual.TopicName)
+	}
+}
+
+func TestCreateSNSTopicRecordsSuccessfulProvision(t *testing.T) {
+	expected := provisioner.SNSTopicResult{
+		TopicName:      "acme-platform-payments-dev",
+		TopicARN:       "arn:aws:sns:us-east-1:123456789012:acme-platform-payments-dev",
+		Region:         "us-east-1",
+		KMSMasterKeyID: "alias/aws/sns",
+		Tags:           map[string]string{"Team": "payments", "Environment": "dev"},
+	}
+	recorder := &fakeSNSTopicProvisionRecorder{}
+	handler := NewServer(&fakeBucketProvisioner{}, nil,
+		WithSNSTopicProvisioner(&fakeSNSTopicProvisioner{result: expected}),
+		WithSNSTopicProvisionRecorder(recorder),
+	)
+	body := bytes.NewBufferString(`{"team":"payments","environment":"dev"}`)
+	request := httptest.NewRequest(http.MethodPost, "/v1/sns-topics", body)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, response.Code)
+	}
+	if recorder.calls != 1 {
+		t.Fatalf("expected recorder to be called once, got %d", recorder.calls)
+	}
+	if recorder.request.Team != "payments" || recorder.request.Environment != "dev" {
+		t.Fatalf("unexpected recorder request: %+v", recorder.request)
+	}
+	if recorder.result.TopicName != expected.TopicName {
+		t.Fatalf("unexpected recorder result: %+v", recorder.result)
+	}
+	if recorder.requestID == "" {
+		t.Fatal("expected recorder request ID")
+	}
+}
+
+func TestCreateSNSTopicValidationError(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil, WithSNSTopicProvisioner(&fakeSNSTopicProvisioner{
+		err: &provisioner.ValidationError{Fields: map[string]string{"team": "required"}},
+	}))
+	body := bytes.NewBufferString(`{"environment":"dev"}`)
+	request := httptest.NewRequest(http.MethodPost, "/v1/sns-topics", body)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, response.Code)
+	}
+	assertErrorCode(t, response, "validation_failed")
+}
+
+func TestCreateSNSTopicRequiresProvisioner(t *testing.T) {
+	handler := NewServer(&fakeBucketProvisioner{}, nil)
+	body := bytes.NewBufferString(`{"team":"payments","environment":"dev"}`)
+	request := httptest.NewRequest(http.MethodPost, "/v1/sns-topics", body)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected status %d, got %d", http.StatusServiceUnavailable, response.Code)
+	}
+	assertErrorCode(t, response, "provisioner_unavailable")
 }
 
 func TestHealthChecksHealthy(t *testing.T) {
@@ -554,6 +655,31 @@ type panicBucketProvisioner struct{}
 
 func (p *panicBucketProvisioner) ProvisionBucket(context.Context, provisioner.BucketRequest) (provisioner.BucketResult, error) {
 	panic("boom")
+}
+
+type fakeSNSTopicProvisioner struct {
+	result provisioner.SNSTopicResult
+	err    error
+}
+
+func (f *fakeSNSTopicProvisioner) ProvisionTopic(context.Context, provisioner.SNSTopicRequest) (provisioner.SNSTopicResult, error) {
+	return f.result, f.err
+}
+
+type fakeSNSTopicProvisionRecorder struct {
+	calls     int
+	request   provisioner.SNSTopicRequest
+	result    provisioner.SNSTopicResult
+	requestID string
+	err       error
+}
+
+func (f *fakeSNSTopicProvisionRecorder) RecordSNSTopicProvisioned(_ context.Context, request provisioner.SNSTopicRequest, result provisioner.SNSTopicResult, requestID string) error {
+	f.calls++
+	f.request = request
+	f.result = result
+	f.requestID = requestID
+	return f.err
 }
 
 type fakeHealthChecker struct {

@@ -12,7 +12,7 @@ variable "environment" {
 
 variable "aws_region" {
   type        = string
-  description = "AWS region for the ECS workload and S3 API calls."
+  description = "AWS region for the ECS workload and AWS API calls."
   default     = "us-east-1"
 }
 
@@ -89,7 +89,7 @@ variable "cpu_architecture" {
 
 variable "managed_bucket_prefix" {
   type        = string
-  description = "Globally unique prefix for buckets the API is allowed to create."
+  description = "Globally unique managed prefix for AWS resources the API is allowed to create."
 }
 
 variable "allowed_kms_key_arns" {
